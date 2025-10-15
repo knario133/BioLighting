@@ -1,36 +1,36 @@
-# BioLighting ESP32 Firmware - v2 (Multi-Language)
+# BioLighting ESP32 Firmware - v2 (Multi-idioma)
 
-This repository contains the PlatformIO firmware for an ESP32-based RGB lighting controller. This version includes a redesigned user interface with multi-language support and a "glassmorphism" visual style.
+Este repositorio contiene el firmware en PlatformIO para un controlador de iluminación RGB basado en ESP32. Esta versión incluye una interfaz de usuario rediseñada con soporte multi-idioma y un estilo visual "glassmorphism".
 
-## Features
+## Características
 
-- **RGB Control**: Control a strip of WS2811 LEDs using the FastLED library.
-- **Bilingual Physical UI**: Adjust Red, Green, Blue, and Intensity values using a 16x2 I2C LCD and a rotary encoder. The UI supports both Spanish and English, and the preference is saved.
-- **Redesigned Web UI**: A clean, responsive "glassmorphism" web interface with sliders, preset buttons, and a language selector (Spanish/English).
-- **Interactive Alerts**: Uses SweetAlert2 for user-friendly confirmation dialogs.
-- **REST API**: A simple API to get and set the light's state programmatically, including presets.
-- **WiFi Manager**: On first boot, the device starts in AP mode with a captive portal to easily configure your WiFi credentials.
-- **Persistence**: Light settings, language preference, and WiFi credentials are saved to non-volatile storage (NVS) and restored on reboot.
+- **Control RGB**: Controla una tira de LEDs WS2811 utilizando la librería FastLED.
+- **UI Física Bilingüe**: Ajusta los valores de Rojo, Verde, Azul e Intensidad usando una pantalla LCD I2C de 16x2 y un codificador rotatorio. La interfaz soporta tanto español como inglés, y la preferencia se guarda.
+- **UI Web Rediseñada**: Una interfaz web limpia y responsiva con estilo "glassmorphism", sliders, botones de presets y un selector de idioma (español/inglés).
+- **Alertas Interactivas**: Usa SweetAlert2 para diálogos de confirmación amigables.
+- **API REST**: Una API sencilla para obtener y establecer el estado de la luz de forma programática, incluyendo presets.
+- **Gestor de WiFi**: En el primer arranque, el dispositivo inicia en modo AP con un portal cautivo para configurar fácilmente tus credenciales de WiFi.
+- **Persistencia**: Los últimos ajustes de luz, la preferencia de idioma y las credenciales de WiFi se guardan en el almacenamiento no volátil (NVS) y se restauran al reiniciar.
 
-## Hardware Requirements
+## Requisitos de Hardware
 
-- **Board**: ESP32 development board (e.g., ESP32-DevKitC)
-- **LEDs**: WS2811 RGB LED strip
-- **Display**: 16x2 I2C LCD Display
-- **Input**: Rotary Encoder with a push-button
+- **Placa**: Placa de desarrollo ESP32 (ej. ESP32-DevKitC)
+- **LEDs**: Tira de LEDs RGB WS2811
+- **Pantalla**: Pantalla LCD I2C 16x2
+- **Entrada**: Codificador rotatorio (Rotary Encoder) con pulsador
 
-### Pinout
+### Pinout (Conexiones)
 
-- **DATA_PIN** (for WS2811 LEDs): `GPIO 25`
-- **I2C_SDA** (for LCD): `GPIO 21`
-- **I2C_SCL** (for LCD): `GPIO 22`
+- **DATA_PIN** (para LEDs WS2811): `GPIO 25`
+- **I2C_SDA** (para LCD): `GPIO 21`
+- **I2C_SCL** (para LCD): `GPIO 22`
 - **ENC_DT** (Rotary Encoder DT): `GPIO 18`
 - **ENC_CLK** (Rotary Encoder CLK): `GPIO 5`
-- **ENC_SW** (Rotary Encoder Switch): `GPIO 19`
+- **ENC_SW** (Rotary Encoder Pulsador): `GPIO 19`
 
-## Library Dependencies
+## Dependencias de Librerías
 
-The project is built on PlatformIO and relies on the following libraries:
+El proyecto está construido sobre PlatformIO y depende de las siguientes librerías:
 
 - `fastled/FastLED`
 - `bblanchon/ArduinoJson`
@@ -39,88 +39,88 @@ The project is built on PlatformIO and relies on the following libraries:
 - `mathertel/RotaryEncoder`
 - `marcoschwartz/LiquidCrystal_I2C`
 
-These are automatically managed by PlatformIO via the `platformio.ini` file.
+Estas son gestionadas automáticamente por PlatformIO a través del archivo `platformio.ini`.
 
-## How to Build and Flash
+## Cómo Compilar y Flashear
 
-1.  **Install PlatformIO**: Make sure you have [PlatformIO IDE for VSCode](https://platformio.org/platformio-ide) installed.
-2.  **Clone the Repository**:
+1.  **Instalar PlatformIO**: Asegúrate de tener instalado [PlatformIO IDE para VSCode](https://platformio.org/platformio-ide).
+2.  **Clonar el Repositorio**:
     ```bash
-    git clone <repository_url>
-    cd <repository_folder>
+    git clone <url_del_repositorio>
+    cd <carpeta_del_repositorio>
     ```
-3.  **Build**: Open the project in VSCode with the PlatformIO extension. In the PlatformIO toolbar, click on "Build".
-4.  **Upload**: Connect your ESP32 board to your computer. In the PlatformIO toolbar, click on "Upload".
-5.  **Upload Filesystem Image**: The web interface files (`/ui_web`) need to be uploaded to the ESP32's LittleFS filesystem. In the PlatformIO toolbar, under the "Project Tasks" for your environment, click on "Upload Filesystem Image". This step is crucial for the web UI to work.
+3.  **Compilar**: Abre el proyecto en VSCode con la extensión de PlatformIO. En la barra de herramientas de PlatformIO, haz clic en "Build".
+4.  **Subir Firmware**: Conecta tu placa ESP32 a tu ordenador. En la barra de herramientas de PlatformIO, haz clic en "Upload".
+5.  **Subir Sistema de Archivos**: Los archivos de la interfaz web (`/ui_web`) deben subirse al sistema de archivos LittleFS del ESP32. En la barra de herramientas de PlatformIO, bajo "Project Tasks" para tu entorno, haz clic en "Upload Filesystem Image". Este paso es crucial para que la UI web funcione.
 
-## Usage
+## Uso
 
-### First-Time Setup (WiFi Configuration)
+### Primera Configuración (Configuración de WiFi)
 
-1.  On the first boot, the device will start in Access Point (AP) mode with the SSID **`BioShacker_Conf`**.
-2.  Connect to this network. A captive portal should open automatically. If not, navigate to `http://192.168.4.1`.
-3.  Enter your home WiFi credentials and save. The device will restart and connect to your network.
+1.  En el primer arranque, el dispositivo iniciará en modo Punto de Acceso (AP) con el SSID **`BioShacker_Conf`**.
+2.  Conéctate a esta red. Un portal cautivo debería abrirse automáticamente. Si no, navega a `http://192.168.4.1`.
+3.  Introduce las credenciales de tu red WiFi local y guarda. El dispositivo se reiniciará y se conectará a tu red.
 
-### Physical UI (LCD + Encoder)
+### UI Física (LCD + Encoder)
 
--   **Turn the Encoder**: Adjusts the value of the currently selected menu (R, G, B, Intensity) or selects the language.
--   **Press the Encoder Button**: Cycles through the seven menus: Red -> Green -> Blue -> Intensity -> Language -> WiFi Connect/Disconnect -> WiFi Change Network.
--   **WiFi Menus**: Allows you to connect/disconnect from the saved network or clear credentials and restart in AP mode.
--   Settings (color and language) are saved automatically.
+-   **Girar el Encoder**: Ajusta el valor del menú actual (R, G, B, Intensidad) o selecciona el idioma.
+-   **Pulsar el Encoder**: Cambia entre los siete menús: Rojo -> Verde -> Azul -> Intensidad -> Idioma -> WiFi Conectar/Desconectar -> Cambiar Red WiFi.
+-   **Menús de WiFi**: Te permite conectar/desconectar de la red guardada o borrar las credenciales y reiniciar en modo AP.
+-   Los ajustes (color e idioma) se guardan automáticamente.
 
-### Web UI
+### UI Web
 
-1.  Once connected to your WiFi, the device's IP address will be shown on the LCD.
-2.  Navigate to this IP in a web browser.
-3.  The interface allows you to:
-    -   Select your preferred language (Español/English).
-    -   Adjust R, G, B, and Intensity with sliders.
-    -   Apply presets (`Warm`, `Cool`, `Sunset`).
-    -   Reset the color to a default state.
-    -   All actions will prompt for confirmation using a dialog box.
+1.  Una vez que el dispositivo esté conectado a tu WiFi, la pantalla LCD mostrará su dirección IP.
+2.  Navega a esa IP en un navegador web.
+3.  La interfaz te permite:
+    -   Seleccionar tu idioma preferido (Español/English).
+    -   Ajustar R, G, B e Intensidad con sliders.
+    -   Aplicar presets (`Warm`, `Cool`, `Sunset`).
+    -   Restablecer el color a un estado por defecto.
+    -   Todas las acciones pedirán confirmación usando un diálogo.
 
-### REST API
+### API REST
 
-The following endpoints are available:
+Los siguientes endpoints están disponibles:
 
-#### Get Light State
+#### Obtener Estado de la Luz
 
 -   **Endpoint**: `GET /api/light`
--   **Response**: `{"r": <0-255>, "g": <0-255>, "b": <0-255>, "intensity": <0-100>}`
+-   **Respuesta**: `{"r": <0-255>, "g": <0-255>, "b": <0-255>, "intensity": <0-100>}`
 
-#### Set Light State
+#### Establecer Estado de la Luz
 
 -   **Endpoint**: `POST /api/light`
--   **Body**: JSON with the same structure as the GET response.
--   **Response**: `200 OK` with the new state. `400 Bad Request` if data is invalid.
+-   **Cuerpo (Body)**: JSON con la misma estructura que la respuesta del GET.
+-   **Respuesta**: `200 OK` con el nuevo estado. `400 Bad Request` si los datos son inválidos.
 
-#### Get Presets
+#### Obtener Presets
 
 -   **Endpoint**: `GET /api/presets`
--   **Response**: `["warm", "cool", "sunset"]`
+-   **Respuesta**: `["warm", "cool", "sunset"]`
 
-#### Apply a Preset
+#### Aplicar un Preset
 
--   **Endpoint**: `POST /api/preset/{name}` (e.g., `/api/preset/warm`)
--   **Response**: `200 OK` with the new state. `404 Not Found` if the preset is invalid.
+-   **Endpoint**: `POST /api/preset/{name}` (ej., `/api/preset/warm`)
+-   **Respuesta**: `200 OK` con el nuevo estado. `404 Not Found` si el preset no es válido.
 
-#### Reset WiFi
+#### Resetear WiFi
 
 -   **Endpoint**: `POST /api/wifi/reset`
--   **Description**: Clears saved WiFi credentials. The device must be rebooted manually to re-enter AP mode.
--   **Response**: `200 OK` with a plain text confirmation.
+-   **Descripción**: Borra las credenciales de WiFi guardadas en NVS. El dispositivo debe ser reiniciado manualmente para reingresar al modo AP.
+-   **Respuesta**: `200 OK` con una confirmación en texto plano.
 
-#### Get WiFi Status
+#### Obtener Estado del WiFi
 
 -   **Endpoint**: `GET /api/wifi/status`
--   **Description**: Retrieves the current WiFi connection status.
--   **Response**:
+-   **Descripción**: Obtiene el estado actual de la conexión WiFi.
+-   **Respuesta**:
     ```json
     {
       "wifi": true,
       "mode": "STA",
       "ip": "192.168.1.123",
-      "ssid": "MyNetwork",
+      "ssid": "MiRed",
       "rssi": -58
     }
     ```
