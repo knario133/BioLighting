@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="theme-color" content="#0ea5e9">
+  <title>BioLighting Control</title>
+
+  <!-- SweetAlert2 -->
+  <link rel="stylesheet" href="sweetalert2.css" />
+  <script src="sweetalert2.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <main class="glass-card" role="main" aria-labelledby="title">
+    <header>
+      <h1 id="title">BioLighting Control</h1>
+      <div class="lang-select">
+        <label class="sr-only" for="langSelect">Idioma</label>
+        <select id="langSelect" aria-label="Seleccionar idioma">
+          <option value="es">ES</option>
+          <option value="en">EN</option>
+        </select>
+      </div>
+    </header>
+
+    <section class="controls">
+      <div class="group">
+        <label for="r-slider"><span id="label-r">Rojo:</span> <span id="r-value">0</span></label>
+        <input type="range" id="r-slider" min="0" max="255" step="1" value="0" />
+      </div>
+
+      <div class="group">
+        <label for="g-slider"><span id="label-g">Verde:</span> <span id="g-value">0</span></label>
+        <input type="range" id="g-slider" min="0" max="255" step="1" value="0" />
+      </div>
+
+      <div class="group">
+        <label for="b-slider"><span id="label-b">Azul:</span> <span id="b-value">0</span></label>
+        <input type="range" id="b-slider" min="0" max="255" step="1" value="0" />
+      </div>
+
+      <div class="group">
+        <label for="intensity-slider"><span id="label-intensity">Intensidad:</span> <span id="intensity-value">100%</span></label>
+        <input type="range" id="intensity-slider" min="0" max="100" step="1" value="100" />
+      </div>
+    </section>
+
+    <div class="actions">
+      <h2 id="presets-title">Presets</h2>
+      <button id="preset-warm" class="btn btn-outline" type="button">Warm</button>
+      <button id="preset-cool" class="btn btn-outline" type="button">Cool</button>
+      <button id="preset-sunset" class="btn btn-outline" type="button">Sunset</button>
+    </div>
+
+    <div class="actions">
+       <h2 id="actions-title">Acciones</h2>
+      <button id="reset-button" class="btn btn-danger" type="button">Reset</button>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
