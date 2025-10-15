@@ -63,14 +63,24 @@ enum TextId {
     TXT_LANGUAGE,
     TXT_VALUE,
     TXT_LANG_ES,
-    TXT_LANG_EN
+    TXT_LANG_EN,
+    TXT_WIFI_CONNECT,
+    TXT_WIFI_CHANGE,
+    TXT_WIFI_STATUS,
+    TXT_WIFI_CONNECTED,
+    TXT_WIFI_DISCONNECTED,
+    TXT_WIFI_ACTION_CONNECT,
+    TXT_WIFI_ACTION_DISCONNECT,
+    TXT_WIFI_ACTION_CHANGE
 };
 
 const char* const TEXTS_ES[] = {
-    "Rojo", "Verde", "Azul", "Intensidad", "Idioma", "Valor", "Espanol", "Ingles"
+    "Rojo", "Verde", "Azul", "Intensidad", "Idioma", "Valor", "Espanol", "Ingles",
+    "WiFi Con/Des", "Cambiar Red", "Estado", "Conectado", "Desconectado", "Conectar", "Desconectar", "Cambiar"
 };
 const char* const TEXTS_EN[] = {
-    "Red", "Green", "Blue", "Intensity", "Language", "Value", "Spanish", "English"
+    "Red", "Green", "Blue", "Intensity", "Language", "Value", "Spanish", "English",
+    "WiFi On/Off", "Change Net", "Status", "Connected", "Disconnected", "Connect", "Disconnect", "Change"
 };
 
 const char* LcdUi::getText(int textId) {
@@ -93,6 +103,10 @@ void LcdUi::handleEncoder() {
             _language = (_language + delta) % 2;
             if (_language < 0) _language = 1;
              _storage.saveLanguage(_language);
+        } else if (_currentState == MENU_WIFI_CONNECT) {
+            // No encoder action in this menu, but we absorb the event
+        } else if (_currentState == MENU_WIFI_CHANGE) {
+            // No encoder action in this menu
         } else {
             int* targetValue = nullptr;
             int max_val = 255;
@@ -123,14 +137,33 @@ void LcdUi::handleButton() {
     if (digitalRead(ENC_SW) == LOW && (millis() - lastButtonPress > BUTTON_DEBOUNCE_MS)) {
         lastButtonPress = millis();
 
+        // Perform action based on the current menu
+        if (_currentState == MENU_WIFI_CONNECT) {
+            if (WiFi.status() == WL_CONNECTED) {
+                WiFi.disconnect(true, true);
+            } else {
+                String ssid, pass;
+                if (_storage.loadWifiCredentials(ssid, pass)) {
+                    WiFi.begin(ssid.c_str(), pass.c_str());
+                }
+            }
+            _forceRedraw = true; // Redraw to show status change
+            return; // Don't cycle menu
+        } else if (_currentState == MENU_WIFI_CHANGE) {
+            _storage.resetWifiCredentials();
+            ESP.restart();
+            return; // Will restart, so no need to do anything else
+        }
+
+        // Save current state before changing menu
         if (_currentState == MENU_LANG) {
             _storage.saveLanguage(_language);
         } else {
             _storage.saveLightConfig(_r, _g, _b, _intensity);
         }
 
-        // Cycle to the next state (now 5 states)
-        _currentState = (UiState)((_currentState + 1) % 5);
+        // Cycle to the next state (now 7 states)
+        _currentState = (UiState)((_currentState + 1) % 7);
         _forceRedraw = true;
     }
 }
@@ -139,6 +172,10 @@ void LcdUi::updateDisplay() {
     _lcd->clear();
     if (_currentState == MENU_LANG) {
         drawLangMenu();
+    } else if (_currentState == MENU_WIFI_CONNECT) {
+        drawWifiConnectMenu();
+    } else if (_currentState == MENU_WIFI_CHANGE) {
+        drawWifiChangeMenu();
     } else {
         drawMenu();
     }
@@ -155,6 +192,8 @@ void LcdUi::drawMenu() {
         case MENU_G: label = getText(TXT_GREEN); value = _g; break;
         case MENU_B: label = getText(TXT_BLUE); value = _b; break;
         case MENU_INTENSITY: label = getText(TXT_INTENSITY); value = _intensity; break;
+        case MENU_WIFI_CONNECT: label = getText(TXT_WIFI_CONNECT); break;
+        case MENU_WIFI_CHANGE: label = getText(TXT_WIFI_CHANGE); break;
         default: break;
     }
 
@@ -171,6 +210,8 @@ void LcdUi::drawMenu() {
     _lcd->print(line);
 }
 
+#include <WiFi.h>
+
 void LcdUi::drawLangMenu() {
     char line[17];
     _lcd->setCursor(0, 0);
@@ -183,5 +224,28 @@ void LcdUi::drawLangMenu() {
     } else { // English
         snprintf(line, sizeof(line), "> %s", getText(TXT_LANG_EN));
     }
+    _lcd->print(line);
+}
+
+void LcdUi::drawWifiConnectMenu() {
+    char line[17];
+    _lcd->setCursor(0, 0);
+    snprintf(line, sizeof(line), "> %s", getText(TXT_WIFI_CONNECT));
+    _lcd->print(line);
+
+    _lcd->setCursor(0, 1);
+    const char* status = (WiFi.status() == WL_CONNECTED) ? getText(TXT_WIFI_CONNECTED) : getText(TXT_WIFI_DISCONNECTED);
+    snprintf(line, sizeof(line), "  %s: %s", getText(TXT_WIFI_STATUS), status);
+    _lcd->print(line);
+}
+
+void LcdUi::drawWifiChangeMenu() {
+    char line[17];
+    _lcd->setCursor(0, 0);
+    snprintf(line, sizeof(line), "> %s", getText(TXT_WIFI_CHANGE));
+    _lcd->print(line);
+
+    _lcd->setCursor(0, 1);
+    snprintf(line, sizeof(line), "  <%s>", getText(TXT_WIFI_ACTION_CHANGE));
     _lcd->print(line);
 }

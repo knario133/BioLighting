@@ -21,7 +21,9 @@ private:
         MENU_G,
         MENU_B,
         MENU_INTENSITY,
-        MENU_LANG
+        MENU_LANG,
+        MENU_WIFI_CONNECT,
+        MENU_WIFI_CHANGE
     };
 
     // Pointers to core components
@@ -45,5 +47,7 @@ private:
     void updateDisplay();
     void drawMenu();
     void drawLangMenu();
+    void drawWifiConnectMenu();
+    void drawWifiChangeMenu();
     const char* getText(int textId);
 };

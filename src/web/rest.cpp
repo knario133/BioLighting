@@ -44,6 +44,9 @@ void RestApi::registerHandlers(AsyncWebServer& server) {
 
     // WiFi reset handler
     server.on("/api/wifi/reset", HTTP_POST, std::bind(&RestApi::handleWifiReset, this, std::placeholders::_1));
+
+    // WiFi status handler
+    server.on("/api/wifi/status", HTTP_GET, std::bind(&RestApi::handleGetWifiStatus, this, std::placeholders::_1));
 }
 
 void RestApi::handleGetLight(AsyncWebServerRequest *request) {
@@ -101,4 +104,26 @@ void RestApi::handleWifiReset(AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "WiFi credentials reset. Please reboot the device.");
     // No automatic restart here to allow the client to receive the response.
     // The user should manually reboot.
+}
+
+void RestApi::handleGetWifiStatus(AsyncWebServerRequest *request) {
+    JsonDocument doc;
+    bool isConnected = (WiFi.status() == WL_CONNECTED);
+
+    doc["wifi"] = isConnected;
+    doc["mode"] = isConnected ? "STA" : (WiFi.getMode() == WIFI_AP ? "AP" : "OFF");
+
+    if (isConnected) {
+        doc["ip"] = WiFi.localIP().toString();
+        doc["ssid"] = WiFi.SSID();
+        doc["rssi"] = WiFi.RSSI();
+    } else {
+        doc["ip"] = WiFi.softAPIP().toString();
+        doc["ssid"] = "";
+        doc["rssi"] = 0;
+    }
+
+    String json;
+    serializeJson(doc, json);
+    request->send(200, "application/json", json);
 }
