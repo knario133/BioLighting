@@ -93,6 +93,21 @@ h2 {
     opacity: .9;
 }
 
+.status-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 10px;
+    margin-bottom: 20px;
+}
+
+.status-item {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
 .lang-select option {
     background: #0c0c0c;
 }

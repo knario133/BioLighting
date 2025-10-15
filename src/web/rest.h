@@ -25,4 +25,7 @@ private:
 
     // Handler for /api/wifi/reset
     void handleWifiReset(class AsyncWebServerRequest *request);
+
+    // Handler for /api/wifi/status
+    void handleGetWifiStatus(class AsyncWebServerRequest *request);
 };

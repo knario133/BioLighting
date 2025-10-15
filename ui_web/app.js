@@ -10,6 +10,10 @@ document.addEventListener('DOMContentLoaded', () => {
             presetsTitle: "Presets",
             actionsTitle: "Acciones",
             resetButton: "Resetear",
+            wifiStatusLabel: "WiFi:",
+            ipLabel: "IP:",
+            connected: "Conectado",
+            disconnected: "Desconectado",
             confirmTitle: "Confirmar Acción",
             confirmText: "¿Estás seguro de que quieres aplicar este cambio?",
             confirmPresetText: (preset) => `¿Aplicar el preset '${preset}'?`,
@@ -26,6 +30,10 @@ document.addEventListener('DOMContentLoaded', () => {
             presetsTitle: "Presets",
             actionsTitle: "Actions",
             resetButton: "Reset",
+            wifiStatusLabel: "WiFi:",
+            ipLabel: "IP:",
+            connected: "Connected",
+            disconnected: "Disconnected",
             confirmTitle: "Confirm Action",
             confirmText: "Are you sure you want to apply this change?",
             confirmPresetText: (preset) => `Apply the '${preset}' preset?`,
@@ -64,7 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
             cool: document.getElementById('preset-cool'),
             sunset: document.getElementById('preset-sunset')
         },
-        resetButton: document.getElementById('reset-button')
+        resetButton: document.getElementById('reset-button'),
+        wifiStatusLabel: document.getElementById('wifi-status-label'),
+        wifiStatusValue: document.getElementById('wifi-status-value'),
+        ipLabel: document.getElementById('ip-label'),
+        ipValue: document.getElementById('ip-value')
     };
 
     let lang = localStorage.getItem('lang') || document.documentElement.lang || 'es';
@@ -85,6 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.presetsTitle.textContent = t.presetsTitle;
         dom.actionsTitle.textContent = t.actionsTitle;
         dom.resetButton.textContent = t.resetButton;
+        dom.wifiStatusLabel.textContent = t.wifiStatusLabel;
+        dom.ipLabel.textContent = t.ipLabel;
     }
 
     dom.langSelect.value = lang;
@@ -148,6 +162,11 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const fetchAndUpdateUi = async () => {
+        fetchLightState();
+        fetchWifiState();
+    };
+
+    const fetchLightState = async () => {
         try {
             const response = await fetch('/api/light');
             if (response.ok) {
@@ -156,6 +175,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (error) {
             console.error('Failed to fetch light state:', error);
+        }
+    };
+
+    const fetchWifiState = async () => {
+        try {
+            const response = await fetch('/api/wifi/status');
+            if (response.ok) {
+                const state = await response.json();
+                updateWifiUi(state);
+            }
+        } catch (error) {
+            console.error('Failed to fetch wifi state:', error);
         }
     };
 
@@ -169,6 +200,16 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.values.b.textContent = state.b;
         dom.sliders.intensity.value = state.intensity;
         dom.values.intensity.textContent = `${state.intensity}%`;
+    };
+
+    const updateWifiUi = (state) => {
+        const t = translations[lang];
+        if (state.wifi) {
+            dom.wifiStatusValue.textContent = `${t.connected} (${state.ssid})`;
+        } else {
+            dom.wifiStatusValue.textContent = t.disconnected;
+        }
+        dom.ipValue.textContent = state.ip;
     };
 
     // --- Event Listeners ---

@@ -63,8 +63,9 @@ These are automatically managed by PlatformIO via the `platformio.ini` file.
 
 ### Physical UI (LCD + Encoder)
 
--   **Turn the Encoder**: Adjusts the value of the current menu (R, G, B, Intensity) or selects the language in the language menu.
--   **Press the Encoder Button**: Cycles through the five menus: Red -> Green -> Blue -> Intensity -> Language -> Red...
+-   **Turn the Encoder**: Adjusts the value of the currently selected menu (R, G, B, Intensity) or selects the language.
+-   **Press the Encoder Button**: Cycles through the seven menus: Red -> Green -> Blue -> Intensity -> Language -> WiFi Connect/Disconnect -> WiFi Change Network.
+-   **WiFi Menus**: Allows you to connect/disconnect from the saved network or clear credentials and restart in AP mode.
 -   Settings (color and language) are saved automatically.
 
 ### Web UI
@@ -108,3 +109,18 @@ The following endpoints are available:
 -   **Endpoint**: `POST /api/wifi/reset`
 -   **Description**: Clears saved WiFi credentials. The device must be rebooted manually to re-enter AP mode.
 -   **Response**: `200 OK` with a plain text confirmation.
+
+#### Get WiFi Status
+
+-   **Endpoint**: `GET /api/wifi/status`
+-   **Description**: Retrieves the current WiFi connection status.
+-   **Response**:
+    ```json
+    {
+      "wifi": true,
+      "mode": "STA",
+      "ip": "192.168.1.123",
+      "ssid": "MyNetwork",
+      "rssi": -58
+    }
+    ```
