@@ -11,6 +11,7 @@ class LiquidCrystal_I2C;
 class LcdUi {
 public:
     LcdUi(LedDriver& ledDriver, Storage& storage);
+    ~LcdUi();
     void begin();
     void loop();
 

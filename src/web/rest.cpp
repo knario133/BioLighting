@@ -61,7 +61,7 @@ void RestApi::handleGetLight(AsyncWebServerRequest *request) {
 
     String json;
     serializeJson(doc, json);
-    request->send(200, "application/json", json);
+    request->send(200, String("application/json"), json);
 }
 
 void RestApi::handleGetPresets(AsyncWebServerRequest *request) {
@@ -73,7 +73,7 @@ void RestApi::handleGetPresets(AsyncWebServerRequest *request) {
 
     String json;
     serializeJson(doc, json);
-    request->send(200, "application/json", json);
+    request->send(200, String("application/json"), json);
 }
 
 void RestApi::handlePostPreset(AsyncWebServerRequest *request) {
@@ -125,5 +125,5 @@ void RestApi::handleGetWifiStatus(AsyncWebServerRequest *request) {
 
     String json;
     serializeJson(doc, json);
-    request->send(200, "application/json", json);
+    request->send(200, String("application/json"), json);
 }

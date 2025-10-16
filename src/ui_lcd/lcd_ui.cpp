@@ -25,6 +25,11 @@ LcdUi::LcdUi(LedDriver& ledDriver, Storage& storage) :
     _encoderValue(0),
     _forceRedraw(true) {}
 
+LcdUi::~LcdUi() {
+    delete _lcd;
+    delete _encoder;
+}
+
 void LcdUi::begin() {
     // Load language first
     _language = _storage.loadLanguage();
