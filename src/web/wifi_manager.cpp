@@ -98,7 +98,7 @@ void WiFiManager::startSTAMode(const String& ssid, const String& pass) {
 }
 
 void WiFiManager::handleRoot(AsyncWebServerRequest *request) {
-    request->send_P(200, "text/html", CAPTIVE_PORTAL_HTML);
+    request->send(200, "text/html", CAPTIVE_PORTAL_HTML);
 }
 
 void WiFiManager::handleSave(AsyncWebServerRequest *request) {

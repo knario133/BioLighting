@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include "rest.h"
 
 // Forward declaration
