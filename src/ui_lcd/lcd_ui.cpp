@@ -1,8 +1,9 @@
 #include "lcd_ui.h"
 #include "../config.h"
 #include <LiquidCrystal_I2C.h>
-#include <RotaryEncoder.h>
+#include "RotaryEncoder.h"
 #include <Arduino.h>
+#include <WiFi.h>
 
 // Pin definitions from the reference project
 #define I2C_SDA 21

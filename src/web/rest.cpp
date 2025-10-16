@@ -14,7 +14,7 @@ void RestApi::registerHandlers(AsyncWebServer& server) {
         [this](AsyncWebServerRequest *request, JsonVariant &json) {
             JsonObject jsonObj = json.as<JsonObject>();
             // --- Validation ---
-            if (!jsonObj.containsKey("r") || !jsonObj.containsKey("g") || !jsonObj.containsKey("b") || !jsonObj.containsKey("intensity")) {
+            if (!jsonObj["r"].is<int>() || !jsonObj["g"].is<int>() || !jsonObj["b"].is<int>() || !jsonObj["intensity"].is<int>()) {
                 request->send(400, "application/json", "{\"error\":\"missing_field\"}");
                 return;
             }
@@ -77,7 +77,7 @@ void RestApi::handleGetPresets(AsyncWebServerRequest *request) {
 }
 
 void RestApi::handlePostPreset(AsyncWebServerRequest *request) {
-    String name = request->pathArg("name");
+    String name = request->pathArg(0);
     uint8_t r, g, b;
 
     if (name.equalsIgnoreCase("warm")) {
