@@ -17,7 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
             stagesTitle: "Etapas",
             testMode: "Modo de Pruebas",
             stopTestMode: "Detener Pruebas",
-            applyButton: "Aplicar Nuevo Color"
+            applyButton: "Aplicar Nuevo Color",
+            btnOff: "Apagado",
+            btnGrowth: "Crecimiento",
+            btnFlowering: "Floración",
+            btnFullSpectrum: "Completo",
+            btnTransition: "Transición"
         },
         en: {
             title: "Lighting Control",
@@ -35,7 +40,12 @@ document.addEventListener('DOMContentLoaded', () => {
             stagesTitle: "Stages",
             testMode: "Test Mode",
             stopTestMode: "Stop Tests",
-            applyButton: "Apply New Color"
+            applyButton: "Apply New Color",
+            btnOff: "Off",
+            btnGrowth: "Growth",
+            btnFlowering: "Flowering",
+            btnFullSpectrum: "Full",
+            btnTransition: "Transition"
         }
     };
 
@@ -117,6 +127,13 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.wifiStatusLabel.textContent = t.wifiStatusLabel;
         dom.ipLabel.textContent = t.ipLabel;
         dom.buttons.testMode.textContent = testModeInterval ? t.stopTestMode : t.testMode;
+
+        // Update stage buttons
+        dom.buttons.off.textContent = t.btnOff;
+        dom.buttons.growth.textContent = t.btnGrowth;
+        dom.buttons.flowering.textContent = t.btnFlowering;
+        dom.buttons.fullSpectrum.textContent = t.btnFullSpectrum;
+        dom.buttons.transition.textContent = t.btnTransition;
     }
 
     // --- API Communication ---
