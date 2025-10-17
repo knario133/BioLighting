@@ -173,12 +173,50 @@ input[type="range"] {
     opacity: .95;
 }
 
+.btn-primary {
+    background: linear-gradient(45deg, #38bdf8, #0ea5e9);
+}
+
 .btn-outline {
     background: transparent;
     border: 1.5px solid rgba(255, 255, 255, .5);
 }
 .btn-outline:hover {
     background: rgba(255, 255, 255, .08);
+}
+
+.color-picker-section {
+    padding: clamp(12px, 2vw, 16px);
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+}
+
+.color-picker-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.color-picker-container label {
+    font-size: .95rem;
+    opacity: .95;
+}
+
+input[type="color"] {
+    width: 60px;
+    height: 40px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+}
+
+.button-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 10px;
+    width: 100%;
 }
 .sr-only {
   position: absolute;

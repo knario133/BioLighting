@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const resetColor = () => {
-        setColor({ r: 0, g: 0, b: 0, intensity: 100 });
+        setColor({ r: 0, g: 0, b: 0, intensity: 0 });
     };
 
     const fetchAndUpdateUi = async () => {
