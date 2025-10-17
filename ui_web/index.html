@@ -60,16 +60,28 @@
       </div>
     </section>
 
+    <section class="controls">
+      <div class="color-picker-container">
+        <label for="color-picker" id="color-picker-label">Color Personalizado</label>
+        <input type="color" id="color-picker" value="#000000">
+      </div>
+    </section>
+
     <div class="actions">
-      <h2 id="presets-title">Presets</h2>
-      <button id="preset-warm" class="btn btn-outline" type="button">Warm</button>
-      <button id="preset-cool" class="btn btn-outline" type="button">Cool</button>
-      <button id="preset-sunset" class="btn btn-outline" type="button">Sunset</button>
+      <h2 id="stages-title">Etapas</h2>
+      <div class="button-grid">
+        <button id="btn-off" class="btn btn-stage" type="button">Apagado</button>
+        <button id="btn-growth" class="btn btn-stage" type="button">Crecimiento vegetativo</button>
+        <button id="btn-flowering" class="btn btn-stage" type="button">Floración</button>
+        <button id="btn-full-spectrum" class="btn btn-stage" type="button">Espectro completo</button>
+        <button id="btn-transition" class="btn btn-stage" type="button">Transición</button>
+      </div>
     </div>
 
     <div class="actions">
        <h2 id="actions-title">Acciones</h2>
-      <button id="reset-button" class="btn btn-danger" type="button">Reset</button>
+       <button id="btn-test-mode" class="btn btn-outline" type="button">Modo de Pruebas</button>
+       <button id="reset-button" class="btn btn-danger" type="button">Reset</button>
     </div>
   </main>
 
