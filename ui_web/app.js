@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
             stagesTitle: "Etapas",
             testMode: "Modo de Pruebas",
             stopTestMode: "Detener Pruebas",
+            applyButton: "Aplicar Nuevo Color"
         },
         en: {
             title: "Lighting Control",
@@ -34,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
             stagesTitle: "Stages",
             testMode: "Test Mode",
             stopTestMode: "Stop Tests",
+            applyButton: "Apply New Color"
         }
     };
 
@@ -57,10 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
             b: document.getElementById('b-slider'),
             intensity: document.getElementById('intensity-slider')
         },
-        values: {
-            r: document.getElementById('r-value'),
-            g: document.getElementById('g-value'),
-            b: document.getElementById('b-value'),
+        inputs: {
+            r: document.getElementById('r-input'),
+            g: document.getElementById('g-input'),
+            b: document.getElementById('b-input'),
+        },
+        values: { // Text values next to sliders (no longer used for RGB)
             intensity: document.getElementById('intensity-value')
         },
         labels: {
@@ -85,12 +89,13 @@ document.addEventListener('DOMContentLoaded', () => {
             fullSpectrum: document.getElementById('btn-full-spectrum'),
             transition: document.getElementById('btn-transition'),
             testMode: document.getElementById('btn-test-mode'),
+            apply: document.getElementById('btn-apply-color'),
         }
     };
 
     let lang = localStorage.getItem('lang') || document.documentElement.lang || 'es';
-    let debounceTimer;
     let testModeInterval = null;
+    let previewState = { r: 0, g: 0, b: 0, intensity: 100 };
 
     // --- Language / i18n ---
     function setLang(l) {
@@ -108,6 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.labels.colorPicker.textContent = t.customColor;
         dom.actionsTitle.textContent = t.actionsTitle;
         dom.resetButton.textContent = t.resetButton;
+        dom.buttons.apply.textContent = t.applyButton;
         dom.wifiStatusLabel.textContent = t.wifiStatusLabel;
         dom.ipLabel.textContent = t.ipLabel;
         dom.buttons.testMode.textContent = testModeInterval ? t.stopTestMode : t.testMode;
@@ -115,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- API Communication ---
     const setColor = async (state) => {
-        stopTestMode(); // Stop test mode on any manual color change
+        stopTestMode();
         try {
             const response = await fetch('/api/light', {
                 method: 'POST',
@@ -124,20 +130,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (response.ok) {
                 const newState = await response.json();
-                updateUi(newState);
+                updateUi(newState); // Sync UI with the confirmed state from device
             }
         } catch (error) {
             console.error('Failed to update light state:', error);
         }
-    };
-
-    const resetColor = () => {
-        setColor({ r: 0, g: 0, b: 0, intensity: 0 });
-    };
-
-    const fetchAndUpdateUi = async () => {
-        fetchLightState();
-        fetchWifiState();
     };
 
     const fetchLightState = async () => {
@@ -164,33 +161,109 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- UI Update ---
+    // --- UI Update & Sync ---
     const toHex = (c) => `0${(c || 0).toString(16)}`.slice(-2);
+
+    // This function updates ONLY the UI controls from a state object
+    const updatePreviewControls = (state) => {
+        previewState = { ...previewState, ...state };
+
+        dom.sliders.r.value = previewState.r;
+        dom.inputs.r.value = previewState.r;
+
+        dom.sliders.g.value = previewState.g;
+        dom.inputs.g.value = previewState.g;
+
+        dom.sliders.b.value = previewState.b;
+        dom.inputs.b.value = previewState.b;
+
+        dom.sliders.intensity.value = previewState.intensity;
+        dom.values.intensity.textContent = `${previewState.intensity}%`;
+
+        dom.colorPicker.value = `#${toHex(previewState.r)}${toHex(previewState.g)}${toHex(previewState.b)}`;
+    };
+
+    // This function is called ONLY after a successful API call
+    // It syncs the preview state and the UI to match the device's actual state.
     const updateUi = (state) => {
-        // Update sliders
-        dom.sliders.r.value = state.r;
-        dom.values.r.textContent = state.r;
-        dom.sliders.g.value = state.g;
-        dom.values.g.textContent = state.g;
-        dom.sliders.b.value = state.b;
-        dom.values.b.textContent = state.b;
-        dom.sliders.intensity.value = state.intensity;
-        dom.values.intensity.textContent = `${state.intensity}%`;
-        // Update color picker
-        dom.colorPicker.value = `#${toHex(state.r)}${toHex(state.g)}${toHex(state.b)}`;
+        previewState = state;
+        updatePreviewControls(state);
     };
 
     const updateWifiUi = (state) => {
         const t = translations[lang];
-        if (state.wifi) {
-            dom.wifiStatusValue.textContent = `${t.connected} (${state.ssid})`;
-        } else {
-            dom.wifiStatusValue.textContent = t.disconnected;
-        }
+        dom.wifiStatusValue.textContent = state.wifi ? `${t.connected} (${state.ssid})` : t.disconnected;
         dom.ipValue.textContent = state.ip;
     };
 
-    // --- Test Mode ---
+    const hexToRgb = (hex) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16)
+        } : null;
+    };
+
+    // --- Event Listeners ---
+    dom.langSelect.addEventListener('change', e => setLang(e.target.value));
+
+    // Listen to Sliders
+    ['r', 'g', 'b', 'intensity'].forEach(key => {
+        dom.sliders[key].addEventListener('input', (e) => {
+            stopTestMode();
+            const value = parseInt(e.target.value, 10);
+            updatePreviewControls({ [key]: value });
+        });
+    });
+
+    // Listen to Number Inputs
+    ['r', 'g', 'b'].forEach(key => {
+        dom.inputs[key].addEventListener('input', (e) => {
+            stopTestMode();
+            let value = parseInt(e.target.value, 10);
+            if (isNaN(value)) value = 0;
+            if (value > 255) value = 255;
+            if (value < 0) value = 0;
+            updatePreviewControls({ [key]: value });
+        });
+    });
+
+    // Listen to Color Picker
+    dom.colorPicker.addEventListener('input', (e) => {
+        stopTestMode();
+        const rgb = hexToRgb(e.target.value);
+        if (rgb) {
+            updatePreviewControls(rgb);
+        }
+    });
+
+    // Listen to Buttons
+    dom.buttons.apply.addEventListener('click', () => {
+        setColor(previewState);
+    });
+
+    Object.keys(stages).forEach(stageName => {
+        if (dom.buttons[stageName]) {
+            dom.buttons[stageName].addEventListener('click', () => {
+                setColor(stages[stageName]);
+            });
+        }
+    });
+
+    dom.resetButton.addEventListener('click', () => {
+        setColor({ r: 0, g: 0, b: 0, intensity: 0 });
+    });
+
+    dom.buttons.testMode.addEventListener('click', () => {
+        if (testModeInterval) {
+            stopTestMode();
+        } else {
+            startTestMode();
+        }
+    });
+
+    // --- Test Mode Logic (Largely unchanged, but uses `updateUi`) ---
     const stopTestMode = () => {
         if (testModeInterval) {
             clearInterval(testModeInterval);
@@ -204,11 +277,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dom.buttons.testMode.textContent = translations[lang].stopTestMode;
         let currentStep = 0;
-        let lastColor = {
-            r: parseInt(dom.sliders.r.value, 10),
-            g: parseInt(dom.sliders.g.value, 10),
-            b: parseInt(dom.sliders.b.value, 10)
-        };
+        let lastColor = { r: previewState.r, g: previewState.g, b: previewState.b };
 
         const runNextFade = () => {
             const targetStageName = testSequence[currentStep];
@@ -220,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         };
 
-        testModeInterval = setInterval(runNextFade, 5100); // 5s fade + 100ms buffer
+        testModeInterval = setInterval(runNextFade, 5100);
         runNextFade();
     };
 
@@ -236,14 +305,19 @@ document.addEventListener('DOMContentLoaded', () => {
         let stepCount = 0;
 
         const fade = setInterval(() => {
-            if (!testModeInterval) { // a manual action stopped the test mode
+            if (!testModeInterval) {
                 clearInterval(fade);
                 return;
             }
 
             if (stepCount >= steps) {
                 clearInterval(fade);
-                setColor({ r: end.r, g: end.g, b: end.b, intensity: end.intensity });
+                // Directly call API, then update UI with response
+                fetch('/api/light', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ r: end.r, g: end.g, b: end.b, intensity: end.intensity })
+                }).then(res => res.json()).then(updateUi);
                 if(onComplete) onComplete();
                 return;
             }
@@ -259,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 intensity: end.intensity
             };
 
-            // During fade, we don't use the main setColor function to avoid stopping the loop
+            // During fade, we also directly call API and update UI
             fetch('/api/light', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -270,70 +344,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }, interval);
     };
 
-    const hexToRgb = (hex) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result ? {
-            r: parseInt(result[1], 16),
-            g: parseInt(result[2], 16),
-            b: parseInt(result[3], 16)
-        } : null;
-    };
-
-    // --- Event Listeners ---
-    dom.langSelect.addEventListener('change', e => setLang(e.target.value));
-
-    for (const key in dom.sliders) {
-        dom.sliders[key].addEventListener('input', (e) => {
-            stopTestMode();
-            const value = parseInt(e.target.value, 10);
-            if (key === 'intensity') {
-                dom.values[key].textContent = `${value}%`;
-            } else {
-                dom.values[key].textContent = value;
-            }
-
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                const currentState = {
-                    r: parseInt(dom.sliders.r.value, 10),
-                    g: parseInt(dom.sliders.g.value, 10),
-                    b: parseInt(dom.sliders.b.value, 10),
-                    intensity: parseInt(dom.sliders.intensity.value, 10)
-                };
-                setColor(currentState);
-            }, 100);
-        });
-    }
-
-    dom.colorPicker.addEventListener('input', (e) => {
-        const rgb = hexToRgb(e.target.value);
-        if (rgb) {
-            setColor({ ...rgb, intensity: 100 });
-        }
-    });
-
-    Object.keys(stages).forEach(stageName => {
-        if (dom.buttons[stageName]) {
-            dom.buttons[stageName].addEventListener('click', () => {
-                setColor(stages[stageName]);
-            });
-        }
-    });
-
-    dom.buttons.testMode.addEventListener('click', () => {
-        if (testModeInterval) {
-            stopTestMode();
-        } else {
-            startTestMode();
-        }
-    });
-
-    dom.resetButton.addEventListener('click', resetColor);
-
     // --- Initialization ---
     const init = () => {
         setLang(lang);
-        fetchAndUpdateUi();
+        fetchLightState(); // Fetches initial state and syncs UI
+        fetchWifiState();
         setInterval(fetchWifiState, 5000);
     };
 

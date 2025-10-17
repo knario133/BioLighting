@@ -212,11 +212,48 @@ input[type="color"] {
     cursor: pointer;
 }
 
+.label-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.label-group label {
+    margin-bottom: 0;
+}
+
+.color-input-number {
+    width: 65px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: var(--txt);
+    border-radius: 8px;
+    padding: 6px 8px;
+    text-align: center;
+    font-size: .9rem;
+}
+
+/* Hide spinner buttons on number inputs */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
 .button-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
     gap: 10px;
     width: 100%;
+}
+
+.button-grid .btn {
+    padding: 10px 8px;
+    font-size: 0.85rem;
 }
 .sr-only {
   position: absolute;
