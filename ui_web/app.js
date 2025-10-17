@@ -22,7 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
             btnGrowth: "Crecimiento",
             btnFlowering: "Floración",
             btnFullSpectrum: "Completo",
-            btnTransition: "Transición"
+            btnTransition: "Transición",
+            confirmTitle: "Confirmar Acción",
+            confirmText: "¿Estás seguro de que quieres aplicar este cambio?",
+            confirmTestModeText: "¿Iniciar el modo de pruebas?",
+            yes: "Sí",
+            no: "No"
         },
         en: {
             title: "Lighting Control",
@@ -137,6 +142,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- API Communication ---
+    const confirmAndSetColor = (state, text = null) => {
+        const t = translations[lang];
+        const confirmText = text || t.confirmText;
+
+        Swal.fire({
+            title: t.confirmTitle,
+            text: confirmText,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: t.yes,
+            cancelButtonText: t.no,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#6b7280'
+        }).then(result => {
+            if (result.isConfirmed) {
+                setColor(state);
+            }
+        });
+    }
+
     const setColor = async (state) => {
         stopTestMode();
         try {
@@ -257,26 +282,40 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Listen to Buttons
     dom.buttons.apply.addEventListener('click', () => {
-        setColor(previewState);
+        confirmAndSetColor(previewState);
     });
 
     Object.keys(stages).forEach(stageName => {
         if (dom.buttons[stageName]) {
             dom.buttons[stageName].addEventListener('click', () => {
-                setColor(stages[stageName]);
+                const stageState = stages[stageName];
+                updatePreviewControls(stageState);
+                confirmAndSetColor(stageState);
             });
         }
     });
 
     dom.resetButton.addEventListener('click', () => {
-        setColor({ r: 0, g: 0, b: 0, intensity: 0 });
+        confirmAndSetColor({ r: 0, g: 0, b: 0, intensity: 0 });
     });
 
     dom.buttons.testMode.addEventListener('click', () => {
         if (testModeInterval) {
             stopTestMode();
         } else {
-            startTestMode();
+            const t = translations[lang];
+            Swal.fire({
+                title: t.confirmTitle,
+                text: t.confirmTestModeText,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: t.yes,
+                cancelButtonText: t.no,
+            }).then(result => {
+                if (result.isConfirmed) {
+                    startTestMode();
+                }
+            });
         }
     });
 
