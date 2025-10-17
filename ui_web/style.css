@@ -255,6 +255,10 @@ input[type=number] {
     padding: 10px 8px;
     font-size: 0.85rem;
 }
+
+.apply-button-container {
+    margin-bottom: 20px;
+}
 .sr-only {
   position: absolute;
   width: 1px;
