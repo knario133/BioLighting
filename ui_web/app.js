@@ -50,7 +50,12 @@ document.addEventListener('DOMContentLoaded', () => {
             btnGrowth: "Growth",
             btnFlowering: "Flowering",
             btnFullSpectrum: "Full",
-            btnTransition: "Transition"
+            btnTransition: "Transition",
+            confirmTitle: "Confirm Action",
+            confirmText: "Are you sure you want to apply this change?",
+            confirmTestModeText: "Start test mode?",
+            yes: "Yes",
+            no: "No"
         }
     };
 
