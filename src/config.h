@@ -5,6 +5,11 @@
 #define NUM_LEDS     4
 #define DATA_PIN     25
 
+// Rotary Encoder Pins
+#define ENCODER_CLK_PIN 5
+#define ENCODER_DT_PIN  18
+#define ENCODER_SW_PIN  19
+
 // Logical Control Range
 #define RGB_MIN      0
 #define RGB_MAX      255

@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Test Mode Logic (Largely unchanged, but uses `updateUi`) ---
+    // --- Test Mode Logic ---
     const stopTestMode = () => {
         if (testModeInterval) {
             clearInterval(testModeInterval);
@@ -338,71 +338,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dom.buttons.testMode.textContent = translations[lang].stopTestMode;
         let currentStep = 0;
-        let lastColor = { r: previewState.r, g: previewState.g, b: previewState.b };
 
-        const runNextFade = () => {
-            const targetStageName = testSequence[currentStep];
-            const target = stages[targetStageName];
+        testModeInterval = setInterval(() => {
+            const stageName = testSequence[currentStep];
+            const state = stages[stageName];
 
-            animateColorFade(lastColor, target, 5000, 50, () => {
-                lastColor = { r: target.r, g: target.g, b: target.b };
-                currentStep = (currentStep + 1) % testSequence.length;
-            });
-        };
-
-        testModeInterval = setInterval(runNextFade, 5100);
-        runNextFade();
-    };
-
-    const animateColorFade = (startRgb, end, duration, interval, onComplete) => {
-        const steps = duration / interval;
-        const rStep = (end.r - startRgb.r) / steps;
-        const gStep = (end.g - startRgb.g) / steps;
-        const bStep = (end.b - startRgb.b) / steps;
-
-        let currentR = startRgb.r;
-        let currentG = startRgb.g;
-        let currentB = startRgb.b;
-        let stepCount = 0;
-
-        const fade = setInterval(() => {
-            if (!testModeInterval) {
-                clearInterval(fade);
-                return;
-            }
-
-            if (stepCount >= steps) {
-                clearInterval(fade);
-                // Directly call API, then update UI with response
-                fetch('/api/light', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ r: end.r, g: end.g, b: end.b, intensity: end.intensity })
-                }).then(res => res.json()).then(updateUi);
-                if(onComplete) onComplete();
-                return;
-            }
-
-            currentR += rStep;
-            currentG += gStep;
-            currentB += bStep;
-
-            const state = {
-                r: Math.round(currentR),
-                g: Math.round(currentG),
-                b: Math.round(currentB),
-                intensity: end.intensity
-            };
-
-            // During fade, we also directly call API and update UI
+            // Fire and forget - send the request but don't wait for it
             fetch('/api/light', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(state)
-            }).then(res => res.json()).then(updateUi);
+            });
 
-            stepCount++;
-        }, interval);
+            // Update the UI locally for immediate feedback
+            updateUi(state);
+
+            currentStep = (currentStep + 1) % testSequence.length;
+        }, 50); // Send a request every 50ms
     };
 
     // --- Initialization ---

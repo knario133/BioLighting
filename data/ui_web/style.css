@@ -270,3 +270,31 @@ input[type=number] {
   white-space: nowrap;
   border-width: 0;
 }
+
+@media screen and (max-width: 600px) {
+    body {
+        padding: 12px;
+    }
+
+    .glass-card {
+        padding: 18px;
+    }
+
+    .button-grid {
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 8px;
+    }
+
+    .btn {
+        padding: 10px 8px;
+        font-size: 0.9rem;
+    }
+
+    h1 {
+        font-size: 1.2rem;
+    }
+
+    .group {
+        padding: 12px;
+    }
+}
