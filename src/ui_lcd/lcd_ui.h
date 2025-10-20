@@ -18,13 +18,15 @@ public:
 private:
     // Enum for UI states
     enum UiState {
-        MENU_R,
-        MENU_G,
-        MENU_B,
-        MENU_INTENSITY,
-        MENU_LANG,
-        MENU_WIFI_CONNECT,
-        MENU_WIFI_CHANGE
+        STATE_HOME,
+        STATE_SET_COLOR_MENU,
+        STATE_SET_COLOR_R,
+        STATE_SET_COLOR_G,
+        STATE_SET_COLOR_B,
+        STATE_SET_INTENSITY,
+        STATE_APPLY_PRESET,
+        STATE_WIFI_RESET,
+        STATE_WIFI_RESET_CONFIRM
     };
 
     // Pointers to core components
