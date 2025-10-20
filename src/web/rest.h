@@ -2,23 +2,20 @@
 
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
-#include <Arduino.h>
 #include "../drivers/led_driver.h"
+#include "../drivers/storage.h"
+
 #include "../drivers/storage.h"
 
 // Forward declaration
 class AsyncWebServer;
 
-// --- Extern the mutex handle defined in main.cpp ---
-extern SemaphoreHandle_t sharedVariablesMutex;
-
 class RestApi {
 public:
-    RestApi(LedDriver& ledDriver, Storage& storage);
+    RestApi(Storage& storage);
     void registerHandlers(AsyncWebServer& server);
 
 private:
-    LedDriver& _ledDriver;
     Storage& _storage;
 
     // Handlers for /api/light
