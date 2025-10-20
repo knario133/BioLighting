@@ -28,9 +28,15 @@ void RestApi::registerHandlers(AsyncWebServer& server) {
                 return;
             }
 
-            // --- Apply and Save ---
-            _ledDriver.setColor(r, g, b, intensity);
-            _storage.saveLightConfig(r, g, b, intensity);
+            // --- Apply and Save (Mutex Protected) ---
+            if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
+                _ledDriver.setColor(r, g, b, intensity);
+                _storage.saveLightConfig(r, g, b, intensity);
+                xSemaphoreGive(sharedVariablesMutex);
+            } else {
+                request->send(503, "application/json", "{\"error\":\"server_busy\"}");
+                return;
+            }
 
             // --- Respond ---
             handleGetLight(request); // Respond with the new state
@@ -51,7 +57,14 @@ void RestApi::registerHandlers(AsyncWebServer& server) {
 
 void RestApi::handleGetLight(AsyncWebServerRequest *request) {
     uint8_t r, g, b, intensity;
-    _ledDriver.getColor(r, g, b, intensity);
+
+    if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
+        _ledDriver.getColor(r, g, b, intensity);
+        xSemaphoreGive(sharedVariablesMutex);
+    } else {
+        request->send(503, "application/json", "{\"error\":\"server_busy\"}");
+        return;
+    }
 
     JsonDocument doc;
     doc["r"] = r;
@@ -93,8 +106,15 @@ void RestApi::handlePostPreset(AsyncWebServerRequest *request) {
 
     // Presets always use full intensity
     uint8_t intensity = 100;
-    _ledDriver.setColor(r, g, b, intensity);
-    _storage.saveLightConfig(r, g, b, intensity);
+
+    if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
+        _ledDriver.setColor(r, g, b, intensity);
+        _storage.saveLightConfig(r, g, b, intensity);
+        xSemaphoreGive(sharedVariablesMutex);
+    } else {
+        request->send(503, "application/json", "{\"error\":\"server_busy\"}");
+        return;
+    }
 
     handleGetLight(request); // Respond with the new state
 }

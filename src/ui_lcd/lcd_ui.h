@@ -3,17 +3,25 @@
 #include <stdint.h>
 #include "../drivers/led_driver.h"
 #include "../drivers/storage.h"
+#include <Arduino.h>
 
 // Forward declarations
 class RotaryEncoder;
 class LiquidCrystal_I2C;
+
+// --- Extern the mutex handle defined in main.cpp ---
+extern SemaphoreHandle_t sharedVariablesMutex;
 
 class LcdUi {
 public:
     LcdUi(LedDriver& ledDriver, Storage& storage);
     ~LcdUi();
     void begin();
-    void loop();
+
+    // --- Public methods for task-based operation ---
+    void handleEncoderInput(long delta);
+    void handleButton();
+    void updateDisplay();
 
 private:
     // Enum for UI states
@@ -35,7 +43,6 @@ private:
     Storage& _storage;
 
     // Hardware instances
-    RotaryEncoder* _encoder;
     LiquidCrystal_I2C* _lcd;
 
     // State variables
@@ -49,9 +56,6 @@ private:
     int _wifiResetConfirmIndex;
 
     // Private methods
-    void handleEncoder();
-    void handleButton();
-    void updateDisplay();
 void drawHomeScreen();
 void drawMainMenu();
 void drawSetColorScreen();
