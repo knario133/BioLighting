@@ -23,13 +23,14 @@
 #define NVS_KEY_B       "b"
 #define NVS_KEY_INT     "int"
 
-// NVS Keys for WiFi credentials
+// NVS Keys for WiFi
 #define NVS_WIFI_NAMESPACE "wificfg"
-#define NVS_KEY_WIFI_SSID  "ssid"
-#define NVS_KEY_WIFI_PASS  "pass"
-
-// Access Point configuration
-#define AP_SSID "BioShacker_Conf"
+#define NVS_KEY_WIFI_ENABLED "enabled"
+#define NVS_KEY_WIFI_MODE    "mode"
+#define NVS_KEY_WIFI_SSID    "ssid" // Reverted to original key
+#define NVS_KEY_WIFI_PASS    "pass" // Reverted to original key
+#define NVS_KEY_AP_SSID      "ap_ssid"
+#define NVS_KEY_AP_PASS      "ap_pass"
 
 // NVS Key for language
 #define NVS_KEY_LANG "lang"

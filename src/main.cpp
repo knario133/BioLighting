@@ -2,6 +2,7 @@
 #include <Preferences.h>
 #include <LiquidCrystal_I2C.h>
 #include <RotaryEncoder.h>
+#include <memory>
 #include "config.h"
 #include "drivers/storage.h"
 #include "drivers/led_driver.h"
@@ -15,12 +16,47 @@
 // ===========================================================================
 // UI State & Menu Definitions
 // ===========================================================================
-enum Screen { HOME, MENU, EDIT };
-enum MenuItem { M_RED, M_GREEN, M_BLUE, M_INTENSITY, M_LANG, M_WIFI_TOGGLE, M_WIFI_CHANGE, M_BACK };
+enum Screen {
+    SCR_HOME,
+    SCR_MENU_MAIN,
+    SCR_EDIT_COLOR,
+    SCR_MENU_WIFI,
+    SCR_EDIT_TEXT,
+    SCR_INFO
+};
 
-Screen uiScreen = HOME;
-MenuItem currentItem = M_RED;
-bool editMode = false;
+enum MainMenuItem {
+    MAIN_MENU_COLOR,
+    MAIN_MENU_WIFI,
+    MAIN_MENU_LANG,
+    MAIN_MENU_BACK
+};
+
+enum WifiMenuItem {
+    WIFI_MENU_ENABLE,
+    WIFI_MENU_MODE,
+    WIFI_MENU_STA_CHANGE,
+    WIFI_MENU_STA_CONNECT,
+    WIFI_MENU_AP_INFO,
+    WIFI_MENU_BACK
+};
+
+enum EditColorSlot {
+    COLOR_SLOT_R,
+    COLOR_SLOT_G,
+    COLOR_SLOT_B,
+    COLOR_SLOT_I // For Intensity/Brightness
+};
+
+Screen          uiScreen = SCR_HOME;
+MainMenuItem    mainMenuItem = MAIN_MENU_COLOR;
+WifiMenuItem    wifiMenuItem = WIFI_MENU_ENABLE;
+EditColorSlot   colorSlot = COLOR_SLOT_R;
+bool            editMode = false; // Will be used for text input
+
+// State for color carousel
+unsigned long lastInteractionTime = 0;
+const unsigned int CAROUSEL_INTERVAL_MS = 2000;
 
 // ===========================================================================
 // i18n (Internationalization)
@@ -30,51 +66,88 @@ Lang currentLang = ES;
 
 const char* TR_ES[][2] = {
   {"title", "BioLighting v2"},
-  {"M_RED", "Rojo"},
-  {"M_GREEN", "Verde"},
-  {"M_BLUE", "Azul"},
-  {"M_INTENSITY", "Intensidad"},
-  {"M_LANG", "Idioma"},
-  {"M_WIFI_TOGGLE", "WiFi Con/Des"},
-  {"M_WIFI_CHANGE", "Cambiar Red"},
-  {"M_BACK", "Volver"},
+  {"main.menu.color", "Color"},
+  {"main.menu.wifi", "WiFi"},
+  {"main.menu.lang", "Idioma"},
+  {"main.menu.back", "Volver"},
+  {"color.r", "R"},
+  {"color.g", "G"},
+  {"color.b", "B"},
+  {"color.brightness", "Brillo"},
+  {"hint.next", "Click: siguiente"},
+  {"wifi.title", "WiFi"},
+  {"wifi.on", "ON"},
+  {"wifi.off", "OFF"},
+  {"wifi.mode", "Modo"},
+  {"wifi.mode.sta", "STA"},
+  {"wifi.mode.ap", "AP"},
+  {"wifi.change_network", "Cambiar Red"},
+  {"wifi.connect_disconnect", "Con/Desconectar"},
+  {"ap.show_info", "Info AP"},
+  {"msg.connecting", "Conectando..."},
+  {"msg.connected", "Conectado"},
+  {"msg.ap_active", "AP activo"},
+  {"msg.error", "Error"},
+  {"msg.restarting_wifi", "Reiniciando WiFi"},
 };
 
 const char* TR_EN[][2] = {
   {"title", "BioLighting v2"},
-  {"M_RED", "Red"},
-  {"M_GREEN", "Green"},
-  {"M_BLUE", "Blue"},
-  {"M_INTENSITY", "Intensity"},
-  {"M_LANG", "Language"},
-  {"M_WIFI_TOGGLE", "WiFi On/Off"},
-  {"M_WIFI_CHANGE", "Change WiFi"},
-  {"M_BACK", "Back"},
+  {"main.menu.color", "Color"},
+  {"main.menu.wifi", "WiFi"},
+  {"main.menu.lang", "Language"},
+  {"main.menu.back", "Back"},
+  {"color.r", "R"},
+  {"color.g", "G"},
+  {"color.b", "B"},
+  {"color.brightness", "Brightness"},
+  {"hint.next", "Click: next"},
+  {"wifi.title", "WiFi"},
+  {"wifi.on", "ON"},
+  {"wifi.off", "OFF"},
+  {"wifi.mode", "Mode"},
+  {"wifi.mode.sta", "STA"},
+  {"wifi.mode.ap", "AP"},
+  {"wifi.change_network", "Change Network"},
+  {"wifi.connect_disconnect", "Connect/Disconnect"},
+  {"ap.show_info", "AP Info"},
+  {"msg.connecting", "Connecting..."},
+  {"msg.connected", "Connected"},
+  {"msg.ap_active", "AP active"},
+  {"msg.error", "Error"},
+  {"msg.restarting_wifi", "Restarting WiFi"},
 };
 
 String tr(const char* key) {
     if (currentLang == EN) {
-        for (int i = 0; i < sizeof(TR_EN) / sizeof(TR_EN[0]); i++) {
+        for (unsigned int i = 0; i < sizeof(TR_EN) / sizeof(TR_EN[0]); i++) {
             if (strcmp(TR_EN[i][0], key) == 0) return TR_EN[i][1];
         }
     }
-    // Default to Spanish
-    for (int i = 0; i < sizeof(TR_ES) / sizeof(TR_ES[0]); i++) {
+    for (unsigned int i = 0; i < sizeof(TR_ES) / sizeof(TR_ES[0]); i++) {
         if (strcmp(TR_ES[i][0], key) == 0) return TR_ES[i][1];
     }
-    return ""; // Not found
+    return "";
 }
 
-const char* menuItemKey(MenuItem item) {
-    switch (item) {
-        case M_RED: return "M_RED";
-        case M_GREEN: return "M_GREEN";
-        case M_BLUE: return "M_BLUE";
-        case M_INTENSITY: return "M_INTENSITY";
-        case M_LANG: return "M_LANG";
-        case M_WIFI_TOGGLE: return "M_WIFI_TOGGLE";
-        case M_WIFI_CHANGE: return "M_WIFI_CHANGE";
-        case M_BACK: return "M_BACK";
+const char* mainMenuItemKey(MainMenuItem item) {
+    switch(item) {
+        case MAIN_MENU_COLOR: return "main.menu.color";
+        case MAIN_MENU_WIFI: return "main.menu.wifi";
+        case MAIN_MENU_LANG: return "main.menu.lang";
+        case MAIN_MENU_BACK: return "main.menu.back";
+    }
+    return "";
+}
+
+const char* wifiMenuItemKey(WifiMenuItem item) {
+    switch(item) {
+        case WIFI_MENU_ENABLE: return "wifi.title"; // Re-using "WiFi" as the item title
+        case WIFI_MENU_MODE: return "wifi.mode";
+        case WIFI_MENU_STA_CHANGE: return "wifi.change_network";
+        case WIFI_MENU_STA_CONNECT: return "wifi.connect_disconnect";
+        case WIFI_MENU_AP_INFO: return "ap.show_info";
+        case WIFI_MENU_BACK: return "main.menu.back";
     }
     return "";
 }
@@ -92,6 +165,7 @@ LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
 RotaryEncoder encoder(ENCODER_DT_PIN, ENCODER_CLK_PIN, RotaryEncoder::LatchMode::FOUR3);
 
 uint8_t r_val, g_val, b_val, intensity_val;
+bool needsRender = true;
 
 // ===========================================================================
 // LCD Helpers
@@ -106,7 +180,6 @@ void lcdPrint16(uint8_t row, const String& s) {
   if (t.length() > 16) t = t.substring(0, 16);
   lcd.setCursor(0, row);
   lcd.print(t);
-  // Pad with spaces
   for (int i = t.length(); i < 16; i++) {
       lcd.print(" ");
   }
@@ -121,9 +194,8 @@ String buildCompactLine2() {
   return String(buf);
 }
 
-void persistIfNeeded() {
+void persistColor() {
     prefs.begin("biolight", false);
-    prefs.putUChar("lang", (uint8_t)currentLang);
     prefs.putUChar("r", r_val);
     prefs.putUChar("g", g_val);
     prefs.putUChar("b", b_val);
@@ -131,53 +203,127 @@ void persistIfNeeded() {
     prefs.end();
 }
 
-void applyDeltaToCurrentItem(int dir) {
+void applyDeltaToColor(int dir) {
     int delta = (dir > 0) ? 1 : -1;
-    switch (currentItem) {
-        case M_RED:
-            r_val = constrain(r_val + delta * 5, 0, 255);
-            break;
-        case M_GREEN:
-            g_val = constrain(g_val + delta * 5, 0, 255);
-            break;
-        case M_BLUE:
-            b_val = constrain(b_val + delta * 5, 0, 255);
-            break;
-        case M_INTENSITY:
-            intensity_val = constrain(intensity_val + delta, 0, 100);
-            break;
-        case M_LANG:
-            currentLang = (currentLang == ES) ? EN : ES;
-            break;
-        case M_WIFI_TOGGLE: // Not implemented
-            break;
-        case M_WIFI_CHANGE: // Not implemented
-            break;
+    switch (colorSlot) {
+        case COLOR_SLOT_R: r_val = constrain(r_val + delta * 5, 0, 255); break;
+        case COLOR_SLOT_G: g_val = constrain(g_val + delta * 5, 0, 255); break;
+        case COLOR_SLOT_B: b_val = constrain(b_val + delta * 5, 0, 255); break;
+        case COLOR_SLOT_I: intensity_val = constrain(intensity_val + delta, 0, 100); break;
     }
     ledDriver.setColor(r_val, g_val, b_val, intensity_val);
+    lastInteractionTime = millis();
+    needsRender = true;
+}
+
+const char* colorSlotKey(EditColorSlot slot) {
+    switch (slot) {
+        case COLOR_SLOT_R: return "color.r";
+        case COLOR_SLOT_G: return "color.g";
+        case COLOR_SLOT_B: return "color.b";
+        case COLOR_SLOT_I: return "color.brightness";
+    }
+    return "";
 }
 
 // ===========================================================================
 // Rendering Functions
 // ===========================================================================
-void renderMenuValue() {
+void renderEditColor() {
+    lcdClearRow(0);
     lcdClearRow(1);
-    String valStr = "";
-    switch (currentItem) {
-        case M_RED: valStr = String(r_val); break;
-        case M_GREEN: valStr = String(g_val); break;
-        case M_BLUE: valStr = String(b_val); break;
-        case M_INTENSITY: valStr = String(intensity_val) + "%"; break;
-        case M_LANG: valStr = (currentLang == ES) ? "Espanol" : "English"; break;
-        default: break;
+    String valStr;
+    switch (colorSlot) {
+        case COLOR_SLOT_R: valStr = String(r_val); break;
+        case COLOR_SLOT_G: valStr = String(g_val); break;
+        case COLOR_SLOT_B: valStr = String(b_val); break;
+        case COLOR_SLOT_I: valStr = String(intensity_val) + "%"; break;
     }
-    lcdPrint16(1, (editMode ? "> " : "") + valStr);
+    lcdPrint16(0, "> " + tr(colorSlotKey(colorSlot)) + ": " + valStr);
+    lcdPrint16(1, tr("hint.next"));
 }
 
-void renderMenu() {
-  lcdClearRow(0);
-  lcdPrint16(0, tr(menuItemKey(currentItem)));
-  renderMenuValue();
+void renderMainMenu() {
+    lcdClearRow(0);
+    lcdClearRow(1);
+
+    String line1 = (mainMenuItem == MAIN_MENU_COLOR) ? "> " : "  ";
+    line1 += tr(mainMenuItemKey(MAIN_MENU_COLOR));
+
+    String line2 = (mainMenuItem == MAIN_MENU_WIFI) ? "> " : "  ";
+    line2 += tr(mainMenuItemKey(MAIN_MENU_WIFI));
+
+    // Simple 2-item pagination for main menu
+    if (mainMenuItem <= MAIN_MENU_WIFI) {
+        lcdPrint16(0, line1);
+        lcdPrint16(1, line2);
+    } else {
+        String line3 = (mainMenuItem == MAIN_MENU_LANG) ? "> " : "  ";
+        line3 += tr(mainMenuItemKey(MAIN_MENU_LANG));
+        String line4 = (mainMenuItem == MAIN_MENU_BACK) ? "> " : "  ";
+        line4 += tr(mainMenuItemKey(MAIN_MENU_BACK));
+        lcdPrint16(0, line3);
+        lcdPrint16(1, line4);
+    }
+}
+
+void renderInfoScreen() {
+    lcdClearRow(0);
+    lcdClearRow(1);
+
+    // Simple pagination using millis() to cycle through info
+    int page = (millis() / 3000) % 3;
+
+    if (page == 0) {
+        lcdPrint16(0, "AP SSID:");
+        lcdPrint16(1, wifiManager.getApSsid());
+    } else if (page == 1) {
+        lcdPrint16(0, "AP Password:");
+        lcdPrint16(1, wifiManager.getApPass());
+    } else {
+        lcdPrint16(0, "AP IP Address:");
+        lcdPrint16(1, wifiManager.getApIp());
+    }
+}
+
+void renderWifiMenu() {
+    lcdClearRow(0);
+    lcdClearRow(1);
+
+    // Page 1: Common settings
+    if (wifiMenuItem <= WIFI_MENU_MODE) {
+        String line1 = (wifiMenuItem == WIFI_MENU_ENABLE) ? "> " : "  ";
+        line1 += "WiFi: ";
+        line1 += wifiManager.isEnabled() ? "[o] " + tr("wifi.on") : "[ ] " + tr("wifi.off");
+
+        String line2 = (wifiMenuItem == WIFI_MENU_MODE) ? "> " : "  ";
+        line2 += "Modo: ";
+        if (wifiManager.getMode() == WiFiMode::STA) {
+            line2 += "[o] STA  [ ] AP";
+        } else {
+            line2 += "[ ] STA  [o] AP";
+        }
+        lcdPrint16(0, line1);
+        lcdPrint16(1, line2);
+    }
+    // Page 2: Mode-specific options
+    else {
+        if (wifiManager.getMode() == WiFiMode::STA) {
+            String line1 = (wifiMenuItem == WIFI_MENU_STA_CHANGE) ? "> " : "  ";
+            line1 += tr(wifiMenuItemKey(WIFI_MENU_STA_CHANGE));
+            String line2 = (wifiMenuItem == WIFI_MENU_STA_CONNECT) ? "> " : "  ";
+            line2 += tr(wifiMenuItemKey(WIFI_MENU_STA_CONNECT));
+            lcdPrint16(0, line1);
+            lcdPrint16(1, line2);
+        } else { // AP Mode
+            String line1 = (wifiMenuItem == WIFI_MENU_AP_INFO) ? "> " : "  ";
+            line1 += tr(wifiMenuItemKey(WIFI_MENU_AP_INFO));
+            String line2 = (wifiMenuItem == WIFI_MENU_BACK) ? "> " : "  ";
+            line2 += tr(wifiMenuItemKey(WIFI_MENU_BACK));
+            lcdPrint16(0, line1);
+            lcdPrint16(1, line2);
+        }
+    }
 }
 
 void renderHome() {
@@ -187,6 +333,21 @@ void renderHome() {
   lcdPrint16(1, buildCompactLine2());
 }
 
+void render() {
+    // Info screen is time-based, so it always needs rendering
+    if (uiScreen == SCR_INFO) needsRender = true;
+    if (!needsRender) return;
+
+    switch (uiScreen) {
+        case SCR_HOME: renderHome(); break;
+        case SCR_MENU_MAIN: renderMainMenu(); break;
+        case SCR_EDIT_COLOR: renderEditColor(); break;
+        case SCR_MENU_WIFI: renderWifiMenu(); break;
+        case SCR_INFO: renderInfoScreen(); break;
+    }
+    needsRender = false;
+}
+
 // ===========================================================================
 // Setup
 // ===========================================================================
@@ -194,7 +355,7 @@ void setup() {
     Serial.begin(115200);
     Serial.println("\n[main] BioLighting Firmware Starting...");
 
-    prefs.begin("biolight", true); // read-only
+    prefs.begin("biolight", true);
     currentLang = (Lang)prefs.getUChar("lang", (uint8_t)ES);
     r_val = prefs.getUChar("r", 255);
     g_val = prefs.getUChar("g", 255);
@@ -214,96 +375,119 @@ void setup() {
     if (wifiManager.isConnected()) {
         webServer.begin();
     }
-
-    renderHome();
-    Serial.println("[main] Setup complete.");
 }
 
 // ===========================================================================
 // Encoder Click Helpers
 // ===========================================================================
-bool encoderShortClick() {
-    static unsigned long lastClickTime = 0;
-    if (digitalRead(ENCODER_SW_PIN) == LOW) {
-        if (millis() - lastClickTime > 250) { // Debounce
-            lastClickTime = millis();
-            return true;
+unsigned long clickStartTime = 0;
+bool longPressTriggered = false;
+
+void handleEncoderEvents() {
+    encoder.tick();
+
+    int dir = (int)encoder.getDirection();
+    if (dir != 0) {
+        lastInteractionTime = millis();
+        if (uiScreen == SCR_EDIT_COLOR) {
+            applyDeltaToColor(dir);
+        } else if (uiScreen == SCR_MENU_MAIN) {
+            int next = (int)mainMenuItem + dir;
+            if (next < 0) next = (int)MAIN_MENU_BACK;
+            if (next > (int)MAIN_MENU_BACK) next = (int)MAIN_MENU_COLOR;
+            mainMenuItem = (MainMenuItem)next;
+            needsRender = true;
+        } else if (uiScreen == SCR_MENU_WIFI) {
+            int current = (int)wifiMenuItem;
+            int next = current + dir;
+
+            if (dir > 0) { // Moving forward
+                if (current == WIFI_MENU_MODE) {
+                    next = (wifiManager.getMode() == WiFiMode::STA) ? WIFI_MENU_STA_CHANGE : WIFI_MENU_AP_INFO;
+                } else if (current == WIFI_MENU_STA_CONNECT || current == WIFI_MENU_AP_INFO) {
+                    next = WIFI_MENU_BACK;
+                } else if (current == WIFI_MENU_BACK) {
+                    next = WIFI_MENU_ENABLE;
+                }
+            } else { // Moving backward
+                if (current == WIFI_MENU_STA_CHANGE || current == WIFI_MENU_AP_INFO) {
+                    next = WIFI_MENU_MODE;
+                } else if (current == WIFI_MENU_ENABLE) {
+                    next = WIFI_MENU_BACK;
+                }
+            }
+            wifiMenuItem = (WifiMenuItem)constrain(next, 0, (int)WIFI_MENU_BACK);
+            needsRender = true;
         }
     }
-    return false;
-}
 
-bool encoderLongClick() {
-    static unsigned long pressStartTime = 0;
-    static bool longPressFired = false;
-
+    // --- Clicks ---
     if (digitalRead(ENCODER_SW_PIN) == LOW) {
-        if (pressStartTime == 0) {
-            pressStartTime = millis();
-            longPressFired = false;
-        } else if (!longPressFired && (millis() - pressStartTime > 1000)) {
-            longPressFired = true;
-            return true;
+        if (clickStartTime == 0) {
+            clickStartTime = millis();
+            longPressTriggered = false;
+        } else if (!longPressTriggered && (millis() - clickStartTime > 1000)) {
+            longPressTriggered = true;
+            lastInteractionTime = millis();
+            // --- Long Click Handler ---
+            if (uiScreen == SCR_EDIT_COLOR) {
+                persistColor();
+                uiScreen = SCR_MENU_MAIN;
+            } else if (uiScreen == SCR_MENU_WIFI) {
+                uiScreen = SCR_MENU_MAIN;
+            } else if (uiScreen == SCR_INFO) {
+                uiScreen = SCR_MENU_WIFI;
+            } else if (uiScreen == SCR_MENU_MAIN) {
+                uiScreen = SCR_HOME;
+            }
+            needsRender = true;
         }
     } else {
-        pressStartTime = 0;
-    }
-    return false;
-}
-
-// ===========================================================================
-// State Handlers
-// ===========================================================================
-void handleEncoderTurn(int dir) {
-    if (uiScreen == MENU && !editMode) {
-        int n = (int)currentItem + dir;
-        if (n < (int)M_RED) n = (int)M_BACK;
-        if (n > (int)M_BACK) n = (int)M_RED;
-        currentItem = (MenuItem)n;
-        renderMenu();
-    } else if (uiScreen == EDIT || (uiScreen == MENU && editMode)) {
-        applyDeltaToCurrentItem(dir);
-        renderMenuValue();
-    }
-}
-
-void handleShortClick() {
-    if (uiScreen == HOME) {
-        uiScreen = MENU;
-        renderMenu();
-    } else if (uiScreen == MENU && !editMode) {
-        if (currentItem == M_BACK) {
-            uiScreen = HOME;
-            renderHome();
-        } else {
-            uiScreen = EDIT;
-            editMode = true;
-            renderMenu();
+        if (clickStartTime > 0 && !longPressTriggered) {
+            lastInteractionTime = millis();
+            // --- Short Click Handler ---
+            if (uiScreen == SCR_HOME) {
+                uiScreen = SCR_MENU_MAIN;
+            } else if (uiScreen == SCR_EDIT_COLOR) {
+                int nextSlot = (int)colorSlot + 1;
+                if (nextSlot > (int)COLOR_SLOT_I) nextSlot = (int)COLOR_SLOT_R;
+                colorSlot = (EditColorSlot)nextSlot;
+            } else if (uiScreen == SCR_MENU_MAIN) {
+                switch (mainMenuItem) {
+                    case MAIN_MENU_COLOR: uiScreen = SCR_EDIT_COLOR; break;
+                    case MAIN_MENU_WIFI: uiScreen = SCR_MENU_WIFI; break;
+                    case MAIN_MENU_LANG: currentLang = (currentLang == ES) ? EN : ES; break; // Simple toggle
+                    case MAIN_MENU_BACK: uiScreen = SCR_HOME; break;
+                }
+            } else if (uiScreen == SCR_MENU_WIFI) {
+                switch (wifiMenuItem) {
+                    case WIFI_MENU_ENABLE:
+                        wifiManager.setEnabled(!wifiManager.isEnabled());
+                        break;
+                    case WIFI_MENU_MODE: {
+                        WiFiMode newMode = (wifiManager.getMode() == WiFiMode::STA) ? WiFiMode::AP : WiFiMode::STA;
+                        wifiManager.setMode(newMode);
+                        wifiMenuItem = WIFI_MENU_ENABLE; // Reset to first page
+                        break;
+                    }
+                    case WIFI_MENU_STA_CHANGE:
+                        storage.resetWifiCredentials();
+                        wifiManager.setMode(WiFiMode::AP);
+                        wifiMenuItem = WIFI_MENU_ENABLE; // Go back to a safe state
+                        // Here you might want to show a "restarting wifi" message
+                        break;
+                    case WIFI_MENU_AP_INFO:
+                        uiScreen = SCR_INFO;
+                        break;
+                    case WIFI_MENU_BACK:
+                        uiScreen = SCR_MENU_MAIN;
+                        break;
+                    default: break;
+                }
+            }
+            needsRender = true;
         }
-    } else if (uiScreen == EDIT || (uiScreen == MENU && editMode)) {
-        uiScreen = MENU;
-        editMode = false;
-        persistIfNeeded();
-        renderMenu();
-    }
-}
-
-void handleLongClick() {
-    if (uiScreen == EDIT || (uiScreen == MENU && editMode)) {
-        uiScreen = MENU;
-        editMode = false;
-        // Reload values from prefs to cancel changes
-        prefs.begin("biolight", true);
-        r_val = prefs.getUChar("r", 255);
-        g_val = prefs.getUChar("g", 255);
-        b_val = prefs.getUChar("b", 255);
-        intensity_val = prefs.getUChar("int", 100);
-        prefs.end();
-        ledDriver.setColor(r_val, g_val, b_val, intensity_val);
-        renderMenu();
-    } else if (uiScreen == MENU) {
-        uiScreen = HOME;
-        renderHome();
+        clickStartTime = 0;
     }
 }
 
@@ -312,16 +496,17 @@ void handleLongClick() {
 // ===========================================================================
 void loop() {
     wifiManager.loop();
-    encoder.tick();
+    handleEncoderEvents();
 
-    int dir = (int)encoder.getDirection();
-    if (dir != 0) {
-        handleEncoderTurn(dir);
+    if (uiScreen == SCR_EDIT_COLOR) {
+        if (millis() - lastInteractionTime >= CAROUSEL_INTERVAL_MS) {
+            int nextSlot = (int)colorSlot + 1;
+            if (nextSlot > (int)COLOR_SLOT_I) nextSlot = (int)COLOR_SLOT_R;
+            colorSlot = (EditColorSlot)nextSlot;
+            lastInteractionTime = millis();
+            needsRender = true;
+        }
     }
-    if (encoderShortClick()) {
-        handleShortClick();
-    }
-    if (encoderLongClick()) {
-        handleLongClick();
-    }
+
+    render();
 }
