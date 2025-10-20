@@ -1,26 +1,31 @@
 #pragma once
 
+#pragma once
+
 #include <stdint.h>
 #include "../drivers/led_driver.h"
 #include "../drivers/storage.h"
+#include <Arduino.h>
 
 // Forward declarations
-class RotaryEncoder;
 class LiquidCrystal_I2C;
+
+// --- Extern the mutex handle defined in main.cpp ---
+extern SemaphoreHandle_t sharedVariablesMutex;
 
 class LcdUi {
 public:
     LcdUi(LedDriver& ledDriver, Storage& storage);
     ~LcdUi();
     void begin();
-    void loop();
+    void loop(long encoderDelta, bool buttonPressed);
 
 private:
     // Enum for UI states
     enum UiState {
         STATE_HOME,
-    STATE_MAIN_MENU,
-    STATE_SET_COLOR,
+        STATE_MAIN_MENU,
+        STATE_SET_COLOR,
         STATE_SET_COLOR_R,
         STATE_SET_COLOR_G,
         STATE_SET_COLOR_B,
@@ -35,7 +40,6 @@ private:
     Storage& _storage;
 
     // Hardware instances
-    RotaryEncoder* _encoder;
     LiquidCrystal_I2C* _lcd;
 
     // State variables
@@ -49,15 +53,15 @@ private:
     int _wifiResetConfirmIndex;
 
     // Private methods
-    void handleEncoder();
-    void handleButton();
+    void handleEncoder(long delta);
+    void handleButton(bool pressed);
     void updateDisplay();
-void drawHomeScreen();
-void drawMainMenu();
-void drawSetColorScreen();
-void drawApplyPresetScreen();
-void drawWifiResetConfirmScreen();
-void handleColorAdjust(long value);
-void print_line(int line, const char* text);
+    void drawHomeScreen();
+    void drawMainMenu();
+    void drawSetColorScreen();
+    void drawApplyPresetScreen();
+    void drawWifiResetConfirmScreen();
+    void handleColorAdjust(long value);
+    void print_line(int line, const char* text);
     const char* getText(int textId);
 };

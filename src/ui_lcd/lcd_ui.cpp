@@ -1,7 +1,6 @@
 #include "lcd_ui.h"
 #include "../config.h"
 #include <LiquidCrystal_I2C.h>
-#include "RotaryEncoder.h"
 #include <Arduino.h>
 #include <WiFi.h>
 
@@ -11,7 +10,7 @@
 #define LCD_ROWS 2
 
 // Debounce and timing
-#define BUTTON_DEBOUNCE_MS 50
+#define BUTTON_DEBOUNCE_MS 200
 #define LONG_PRESS_MS 700
 
 // --- Menu Definitions ---
@@ -36,7 +35,6 @@ const int PRESET_MENU_SIZE = sizeof(PRESETS) / sizeof(PRESETS[0]);
 LcdUi::LcdUi(LedDriver& ledDriver, Storage& storage) :
     _ledDriver(ledDriver),
     _storage(storage),
-    _encoder(nullptr),
     _lcd(nullptr),
     _currentState(STATE_HOME),
     _r(0), _g(0), _b(0), _intensity(100),
@@ -50,7 +48,6 @@ LcdUi::LcdUi(LedDriver& ledDriver, Storage& storage) :
 
 LcdUi::~LcdUi() {
     delete _lcd;
-    delete _encoder;
 }
 
 void LcdUi::begin() {
@@ -58,17 +55,18 @@ void LcdUi::begin() {
     _lcd->init();
     _lcd->backlight();
     _lcd->clear();
-
-    pinMode(ENCODER_SW_PIN, INPUT_PULLUP);
-    _encoder = new RotaryEncoder(ENCODER_DT_PIN, ENCODER_CLK_PIN, RotaryEncoder::LatchMode::FOUR3);
-
-    _ledDriver.getColor(_r, _g, _b, _intensity);
+    if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
+        _ledDriver.getColor(_r, _g, _b, _intensity);
+        xSemaphoreGive(sharedVariablesMutex);
+    }
 }
 
-void LcdUi::loop() {
-    _encoder->tick();
-    handleEncoder();
-    handleButton();
+void LcdUi::loop(long encoderDelta, bool buttonPressed) {
+    if (encoderDelta != 0) {
+        handleEncoder(encoderDelta);
+        _forceRedraw = true;
+    }
+    handleButton(buttonPressed);
 
     if (_forceRedraw) {
         updateDisplay();
@@ -76,13 +74,7 @@ void LcdUi::loop() {
     }
 }
 
-void LcdUi::handleEncoder() {
-    long newPos = _encoder->getPosition();
-    if (_encoderValue == newPos) return;
-
-    long delta = (newPos - _encoderValue);
-    _encoderValue = newPos;
-
+void LcdUi::handleEncoder(long delta) {
     switch (_currentState) {
         case STATE_HOME:
             _currentState = STATE_MAIN_MENU;
@@ -106,78 +98,72 @@ void LcdUi::handleEncoder() {
         default:
             break;
     }
-    _forceRedraw = true;
 }
 
-void LcdUi::handleButton() {
+void LcdUi::handleButton(bool pressed) {
     static uint32_t lastPressTime = 0;
-    static bool buttonState = true;
-    bool currentButtonState = digitalRead(ENCODER_SW_PIN);
 
-    if (buttonState != currentButtonState) {
-        delay(BUTTON_DEBOUNCE_MS);
-        currentButtonState = digitalRead(ENCODER_SW_PIN);
-        if (buttonState != currentButtonState) {
-            buttonState = currentButtonState;
-            if (buttonState == LOW) { // Button pressed
-                lastPressTime = millis();
-            } else { // Button released
-                if (millis() - lastPressTime < LONG_PRESS_MS) {
-                    // --- SHORT PRESS ---
-                    switch (_currentState) {
-                        case STATE_HOME: _currentState = STATE_MAIN_MENU; break;
-                        case STATE_MAIN_MENU:
-                            if (_mainMenuIndex == 0) _currentState = STATE_SET_COLOR;
-                            else if (_mainMenuIndex == 1) _currentState = STATE_APPLY_PRESET;
-                            else if (_mainMenuIndex == 2) _currentState = STATE_WIFI_RESET;
-                            break;
-                        case STATE_SET_COLOR: _currentState = STATE_SET_COLOR_R; break;
-                        case STATE_SET_COLOR_R: _currentState = STATE_SET_COLOR_G; break;
-                        case STATE_SET_COLOR_G: _currentState = STATE_SET_COLOR_B; break;
-                        case STATE_SET_COLOR_B: _currentState = STATE_SET_INTENSITY; break;
-                        case STATE_SET_INTENSITY:
-                            _currentState = STATE_HOME;
-                             _storage.saveLightConfig(_r, _g, _b, _intensity);
-                            break;
-                        case STATE_APPLY_PRESET: {
-                            const Preset& p = PRESETS[_presetMenuIndex];
-                            _r = p.r; _g = p.g; _b = p.b;
-                            _intensity = (strcmp(p.name, "Apagado") == 0) ? 0 : 100;
-                            _ledDriver.setColor(_r, _g, _b, _intensity);
-                             _storage.saveLightConfig(_r, _g, _b, _intensity);
-                            _currentState = STATE_HOME;
-                            break;
-                        }
-                        case STATE_WIFI_RESET: _currentState = STATE_WIFI_RESET_CONFIRM; break;
-                        case STATE_WIFI_RESET_CONFIRM:
-                            if (_wifiResetConfirmIndex == 1) { // YES
-                                _storage.resetWifiCredentials();
-                                ESP.restart();
-                            } else { // NO
-                                _currentState = STATE_HOME;
-                            }
-                            break;
-                    }
+    if (pressed && (millis() - lastPressTime > BUTTON_DEBOUNCE_MS)) {
+        lastPressTime = millis();
+        _forceRedraw = true;
+
+        // --- SHORT PRESS ---
+        switch (_currentState) {
+            case STATE_HOME: _currentState = STATE_MAIN_MENU; break;
+            case STATE_MAIN_MENU:
+                if (_mainMenuIndex == 0) _currentState = STATE_SET_COLOR;
+                else if (_mainMenuIndex == 1) _currentState = STATE_APPLY_PRESET;
+                else if (_mainMenuIndex == 2) _currentState = STATE_WIFI_RESET;
+                break;
+            case STATE_SET_COLOR: _currentState = STATE_SET_COLOR_R; break;
+            case STATE_SET_COLOR_R: _currentState = STATE_SET_COLOR_G; break;
+            case STATE_SET_COLOR_G: _currentState = STATE_SET_COLOR_B; break;
+            case STATE_SET_COLOR_B: _currentState = STATE_SET_INTENSITY; break;
+            case STATE_SET_INTENSITY:
+                _currentState = STATE_HOME;
+                if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
+                    _storage.saveLightConfig(_r, _g, _b, _intensity);
+                    xSemaphoreGive(sharedVariablesMutex);
                 }
+                break;
+            case STATE_APPLY_PRESET: {
+                const Preset& p = PRESETS[_presetMenuIndex];
+                _r = p.r; _g = p.g; _b = p.b;
+                _intensity = (strcmp(p.name, "Apagado") == 0) ? 0 : 100;
+                if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
+                    _ledDriver.setColor(_r, _g, _b, _intensity);
+                    _storage.saveLightConfig(_r, _g, _b, _intensity);
+                    xSemaphoreGive(sharedVariablesMutex);
+                }
+                _currentState = STATE_HOME;
+                break;
             }
+            case STATE_WIFI_RESET: _currentState = STATE_WIFI_RESET_CONFIRM; break;
+            case STATE_WIFI_RESET_CONFIRM:
+                if (_wifiResetConfirmIndex == 1) { // YES
+                    _storage.resetWifiCredentials();
+                    ESP.restart();
+                } else { // NO
+                    _currentState = STATE_HOME;
+                }
+                break;
         }
     }
-
-    if (buttonState == LOW && (millis() - lastPressTime >= LONG_PRESS_MS)) {
-        // --- LONG PRESS ---
-        _currentState = STATE_HOME;
-        lastPressTime = millis() + 10000; // Prevent re-trigger
-    }
-
-    _forceRedraw = true;
+    // Long press logic can be added here if needed
 }
 
 
 void LcdUi::updateDisplay() {
-    _lcd->clear();
+    // _lcd->clear(); // <-- This is the main source of flicker. Remove it.
+    // Instead, each draw function is responsible for clearing its own area if needed.
+    // For menus, a full redraw is fine. For dynamic data, we avoid it.
+
     switch (_currentState) {
         case STATE_HOME: drawHomeScreen(); break;
-        case STATE_MAIN_MENU: drawMainMenu(); break;
+        case STATE_MAIN_MENU:
+            _lcd->clear(); // Clear only when entering a new menu
+            drawMainMenu();
+            break;
         case STATE_SET_COLOR:
         case STATE_SET_COLOR_R:
         case STATE_SET_COLOR_G:
@@ -200,17 +186,30 @@ void LcdUi::print_line(int line, const char* text) {
 }
 
 void LcdUi::drawHomeScreen() {
+    static char last_line1[LCD_COLS + 1] = "";
+    static char last_line2[LCD_COLS + 1] = "";
     char line1[LCD_COLS + 1];
+    char line2[LCD_COLS + 1];
+
+    // Line 1: WiFi Status
     if (WiFi.status() == WL_CONNECTED) {
         snprintf(line1, sizeof(line1), "IP: %s", WiFi.localIP().toString().c_str());
     } else {
         snprintf(line1, sizeof(line1), "AP Mode: %s", AP_SSID);
     }
-    print_line(0, line1);
 
-    char line2[LCD_COLS + 1];
+    // Line 2: Color and Intensity
     snprintf(line2, sizeof(line2), "R%03d G%03d B%03d I%03d", _r, _g, _b, _intensity);
-    print_line(1, line2);
+
+    // Only print if the content has changed
+    if (strcmp(line1, last_line1) != 0) {
+        print_line(0, line1);
+        strcpy(last_line1, line1);
+    }
+    if (strcmp(line2, last_line2) != 0) {
+        print_line(1, line2);
+        strcpy(last_line2, line2);
+    }
 }
 
 void LcdUi::drawMainMenu() {
@@ -255,14 +254,28 @@ void LcdUi::handleColorAdjust(long delta) {
         *targetValue = newValue;
     }
 
-    _ledDriver.setColor(_r, _g, _b, _intensity);
+    if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(50))) {
+        _ledDriver.setColor(_r, _g, _b, _intensity);
+        xSemaphoreGive(sharedVariablesMutex);
+    }
 }
 
 void LcdUi::drawSetColorScreen() {
+    static int last_value = -1;
+    static UiState last_state = STATE_HOME;
+
     if (_currentState == STATE_SET_COLOR) {
+        _lcd->clear();
         print_line(0, "SET COLOR");
         print_line(1, "> Press to start");
+        last_state = STATE_SET_COLOR;
         return;
+    }
+
+    // If the state changes (e.g., from R to G), force a redraw of the whole screen
+    if (_currentState != last_state) {
+        _lcd->clear();
+        last_value = -1; // Force value redraw
     }
 
     char line1[LCD_COLS + 1];
@@ -274,18 +287,26 @@ void LcdUi::drawSetColorScreen() {
         case STATE_SET_COLOR_G: label = "Green"; value = _g; break;
         case STATE_SET_COLOR_B: label = "Blue"; value = _b; break;
         case STATE_SET_INTENSITY: label = "Intensity"; value = _intensity; break;
-        default: break;
+        default: return;
     }
 
-    snprintf(line1, sizeof(line1), "Set %s: %d", label, value);
-    print_line(0, line1);
+    // Only update the value if it has changed
+    if (value != last_value || _currentState != last_state) {
+        snprintf(line1, sizeof(line1), "Set %s: %d", label, value);
+        print_line(0, line1);
+        last_value = value;
+    }
 
-    char line2[LCD_COLS + 1] = "";
-    if (_currentState == STATE_SET_COLOR_R) strcat(line2, "R< G  B  I ");
-    else if (_currentState == STATE_SET_COLOR_G) strcat(line2, "R  G< B  I ");
-    else if (_currentState == STATE_SET_COLOR_B) strcat(line2, "R  G  B< I ");
-    else if (_currentState == STATE_SET_INTENSITY) strcat(line2, "R  G  B  I<");
-    print_line(1, line2);
+    // The second line only needs to be drawn once per state change
+    if (_currentState != last_state) {
+        char line2[LCD_COLS + 1] = "";
+        if (_currentState == STATE_SET_COLOR_R) strcat(line2, "R< G  B  I ");
+        else if (_currentState == STATE_SET_COLOR_G) strcat(line2, "R  G< B  I ");
+        else if (_currentState == STATE_SET_COLOR_B) strcat(line2, "R  G  B< I ");
+        else if (_currentState == STATE_SET_INTENSITY) strcat(line2, "R  G  B  I<");
+        print_line(1, line2);
+        last_state = _currentState;
+    }
 }
 const char* LcdUi::getText(int textId) {
     // This function is not used in the new implementation, but is kept for compatibility
