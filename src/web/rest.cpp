@@ -2,9 +2,13 @@
 #include "../config.h"
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
+#include <Preferences.h>
 
-RestApi::RestApi(LedDriver& ledDriver, Storage& storage) :
-    _ledDriver(ledDriver), _storage(storage) {}
+extern LedDriver ledDriver;
+extern Preferences prefs;
+extern uint8_t r_val, g_val, b_val, intensity_val;
+
+RestApi::RestApi(Storage& storage) : _storage(storage) {}
 
 void RestApi::registerHandlers(AsyncWebServer& server) {
     // Light state handlers
@@ -13,64 +17,45 @@ void RestApi::registerHandlers(AsyncWebServer& server) {
     AsyncCallbackJsonWebHandler* postLightHandler = new AsyncCallbackJsonWebHandler("/api/light",
         [this](AsyncWebServerRequest *request, JsonVariant &json) {
             JsonObject jsonObj = json.as<JsonObject>();
-            // --- Validation ---
             if (!jsonObj["r"].is<int>() || !jsonObj["g"].is<int>() || !jsonObj["b"].is<int>() || !jsonObj["intensity"].is<int>()) {
                 request->send(400, "application/json", "{\"error\":\"missing_field\"}");
                 return;
             }
-            int r = jsonObj["r"];
-            int g = jsonObj["g"];
-            int b = jsonObj["b"];
-            int intensity = jsonObj["intensity"];
+            r_val = jsonObj["r"];
+            g_val = jsonObj["g"];
+            b_val = jsonObj["b"];
+            intensity_val = jsonObj["intensity"];
 
-            if (r < RGB_MIN || r > RGB_MAX || g < RGB_MIN || g > RGB_MAX || b < RGB_MIN || b > RGB_MAX || intensity < INT_MIN_PCT || intensity > INT_MAX_PCT) {
+            if (r_val < 0 || r_val > 255 || g_val < 0 || g_val > 255 || b_val < 0 || b_val > 255 || intensity_val < 0 || intensity_val > 100) {
                 request->send(400, "application/json", "{\"error\":\"out_of_range\"}");
                 return;
             }
 
-            // --- Apply and Save (Mutex Protected) ---
-            if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
-                _ledDriver.setColor(r, g, b, intensity);
-                _storage.saveLightConfig(r, g, b, intensity);
-                xSemaphoreGive(sharedVariablesMutex);
-            } else {
-                request->send(503, "application/json", "{\"error\":\"server_busy\"}");
-                return;
-            }
+            ledDriver.setColor(r_val, g_val, b_val, intensity_val);
+            prefs.begin("biolight", false);
+            prefs.putUChar("r", r_val);
+            prefs.putUChar("g", g_val);
+            prefs.putUChar("b", b_val);
+            prefs.putUChar("int", intensity_val);
+            prefs.end();
 
-            // --- Respond ---
-            handleGetLight(request); // Respond with the new state
+            handleGetLight(request);
         }
     );
     server.addHandler(postLightHandler);
 
-    // Preset handlers
     server.on("/api/presets", HTTP_GET, std::bind(&RestApi::handleGetPresets, this, std::placeholders::_1));
     server.on("/api/preset/{name}", HTTP_POST, std::bind(&RestApi::handlePostPreset, this, std::placeholders::_1));
-
-    // WiFi reset handler
     server.on("/api/wifi/reset", HTTP_POST, std::bind(&RestApi::handleWifiReset, this, std::placeholders::_1));
-
-    // WiFi status handler
     server.on("/api/wifi/status", HTTP_GET, std::bind(&RestApi::handleGetWifiStatus, this, std::placeholders::_1));
 }
 
 void RestApi::handleGetLight(AsyncWebServerRequest *request) {
-    uint8_t r, g, b, intensity;
-
-    if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
-        _ledDriver.getColor(r, g, b, intensity);
-        xSemaphoreGive(sharedVariablesMutex);
-    } else {
-        request->send(503, "application/json", "{\"error\":\"server_busy\"}");
-        return;
-    }
-
     JsonDocument doc;
-    doc["r"] = r;
-    doc["g"] = g;
-    doc["b"] = b;
-    doc["intensity"] = intensity;
+    doc["r"] = r_val;
+    doc["g"] = g_val;
+    doc["b"] = b_val;
+    doc["intensity"] = intensity_val;
 
     String json;
     serializeJson(doc, json);
@@ -91,39 +76,33 @@ void RestApi::handleGetPresets(AsyncWebServerRequest *request) {
 
 void RestApi::handlePostPreset(AsyncWebServerRequest *request) {
     String name = request->pathArg(0);
-    uint8_t r, g, b;
 
     if (name.equalsIgnoreCase("warm")) {
-        r = 255; g = 180; b = 120;
+        r_val = 255; g_val = 180; b_val = 120;
     } else if (name.equalsIgnoreCase("cool")) {
-        r = 150; g = 200; b = 255;
+        r_val = 150; g_val = 200; b_val = 255;
     } else if (name.equalsIgnoreCase("sunset")) {
-        r = 255; g = 100; b = 40;
+        r_val = 255; g_val = 100; b_val = 40;
     } else {
         request->send(404, "application/json", "{\"error\":\"preset_not_found\"}");
         return;
     }
 
-    // Presets always use full intensity
-    uint8_t intensity = 100;
+    intensity_val = 100;
+    ledDriver.setColor(r_val, g_val, b_val, intensity_val);
+    prefs.begin("biolight", false);
+    prefs.putUChar("r", r_val);
+    prefs.putUChar("g", g_val);
+    prefs.putUChar("b", b_val);
+    prefs.putUChar("int", intensity_val);
+    prefs.end();
 
-    if (xSemaphoreTake(sharedVariablesMutex, pdMS_TO_TICKS(1000))) {
-        _ledDriver.setColor(r, g, b, intensity);
-        _storage.saveLightConfig(r, g, b, intensity);
-        xSemaphoreGive(sharedVariablesMutex);
-    } else {
-        request->send(503, "application/json", "{\"error\":\"server_busy\"}");
-        return;
-    }
-
-    handleGetLight(request); // Respond with the new state
+    handleGetLight(request);
 }
 
 void RestApi::handleWifiReset(AsyncWebServerRequest *request) {
     _storage.resetWifiCredentials();
     request->send(200, "text/plain", "WiFi credentials reset. Please reboot the device.");
-    // No automatic restart here to allow the client to receive the response.
-    // The user should manually reboot.
 }
 
 void RestApi::handleGetWifiStatus(AsyncWebServerRequest *request) {
