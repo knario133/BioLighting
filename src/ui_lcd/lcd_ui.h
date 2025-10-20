@@ -19,7 +19,8 @@ private:
     // Enum for UI states
     enum UiState {
         STATE_HOME,
-        STATE_SET_COLOR_MENU,
+    STATE_MAIN_MENU,
+    STATE_SET_COLOR,
         STATE_SET_COLOR_R,
         STATE_SET_COLOR_G,
         STATE_SET_COLOR_B,
@@ -43,14 +44,20 @@ private:
     uint8_t _language; // 0: ES, 1: EN
     long _encoderValue;
     bool _forceRedraw;
+    int _mainMenuIndex;
+    int _presetMenuIndex;
+    int _wifiResetConfirmIndex;
 
     // Private methods
     void handleEncoder();
     void handleButton();
     void updateDisplay();
-    void drawMenu();
-    void drawLangMenu();
-    void drawWifiConnectMenu();
-    void drawWifiChangeMenu();
+void drawHomeScreen();
+void drawMainMenu();
+void drawSetColorScreen();
+void drawApplyPresetScreen();
+void drawWifiResetConfirmScreen();
+void handleColorAdjust(long value);
+void print_line(int line, const char* text);
     const char* getText(int textId);
 };
