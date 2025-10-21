@@ -100,7 +100,7 @@ void WiFiManager::startAPMode() {
 
     // Redirect any not-found requests to the setup page, for captive portal functionality
     portalServer->onNotFound([](AsyncWebServerRequest *request) {
-        request->redirect("/setup.html");
+        request->redirect("setup.html");
     });
 
     portalServer->begin();
