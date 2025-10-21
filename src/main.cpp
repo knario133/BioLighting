@@ -34,9 +34,9 @@ Lang currentLang = ES;
 
 const char* TR_ES[][2] = {
   {"title", "BioLighting v2"},
-  {"M_RED", "Rojo"},
-  {"M_GREEN", "Verde"},
-  {"M_BLUE", "Azul"},
+  {"M_RED", "Color Rojo"},
+  {"M_GREEN", "Color Verde"},
+  {"M_BLUE", "Color Azul"},
   {"M_INTENSITY", "Intensidad"},
   {"M_LANG", "Idioma"},
   {"M_WIFI_TOGGLE", "WiFi Con/Des"},
@@ -52,9 +52,9 @@ const char* TR_ES[][2] = {
 
 const char* TR_EN[][2] = {
   {"title", "BioLighting v2"},
-  {"M_RED", "Red"},
-  {"M_GREEN", "Green"},
-  {"M_BLUE", "Blue"},
+  {"M_RED", "Red Color"},
+  {"M_GREEN", "Green Color"},
+  {"M_BLUE", "Blue Color"},
   {"M_INTENSITY", "Intensity"},
   {"M_LANG", "Language"},
   {"M_WIFI_TOGGLE", "WiFi On/Off"},
