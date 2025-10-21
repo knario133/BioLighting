@@ -5,8 +5,6 @@
 #include "../drivers/led_driver.h"
 #include "../drivers/storage.h"
 
-#include "../drivers/storage.h"
-
 // Forward declaration
 class AsyncWebServer;
 
@@ -17,6 +15,8 @@ public:
 
 private:
     Storage& _storage;
+    String _scan_cache;
+    unsigned long _last_scan_ms = 0;
 
     // Handlers for /api/light
     void handleGetLight(class AsyncWebServerRequest *request);
@@ -31,4 +31,14 @@ private:
 
     // Handler for /api/wifi/status
     void handleGetWifiStatus(class AsyncWebServerRequest *request);
+
+    // Handler for /api/wifi/scan
+    void handleGetWifiScan(class AsyncWebServerRequest *request);
+
+    // Handler for /api/wifi/connect
+    void handlePostWifiConnect(class AsyncWebServerRequest *request, const JsonVariant &json);
+
+    // Handlers for /api/lang
+    void handleGetLang(class AsyncWebServerRequest *request);
+    void handlePostLang(class AsyncWebServerRequest *request, const JsonVariant &json);
 };

@@ -27,7 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmText: "¿Estás seguro de que quieres aplicar este cambio?",
             confirmTestModeText: "¿Iniciar el modo de pruebas?",
             yes: "Sí",
-            no: "No"
+            no: "No",
+            homeChangeWifi: "Cambiar WiFi"
         },
         en: {
             title: "Lighting Control",
@@ -55,7 +56,8 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmText: "Are you sure you want to apply this change?",
             confirmTestModeText: "Start test mode?",
             yes: "Yes",
-            no: "No"
+            no: "No",
+            homeChangeWifi: "Change WiFi"
         }
     };
 
@@ -110,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
             transition: document.getElementById('btn-transition'),
             testMode: document.getElementById('btn-test-mode'),
             apply: document.getElementById('btn-apply-color'),
+            changeWifi: document.getElementById('btn-change-wifi'),
         }
     };
 
@@ -144,6 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.buttons.flowering.textContent = t.btnFlowering;
         dom.buttons.fullSpectrum.textContent = t.btnFullSpectrum;
         dom.buttons.transition.textContent = t.btnTransition;
+        dom.buttons.changeWifi.textContent = t.homeChangeWifi;
     }
 
     // --- API Communication ---
@@ -288,6 +292,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Listen to Buttons
     dom.buttons.apply.addEventListener('click', () => {
         confirmAndSetColor(previewState);
+    });
+
+    dom.buttons.changeWifi.addEventListener('click', () => {
+        window.location.href = '/setup.html';
     });
 
     Object.keys(stages).forEach(stageName => {

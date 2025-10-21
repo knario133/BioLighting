@@ -1,0 +1,20 @@
+{
+    "wifi.title": "Configurar WiFi",
+    "wifi.refresh": "Actualizar",
+    "wifi.network": "Red",
+    "wifi.hidden_network": "Red Oculta",
+    "wifi.ssid": "Nombre de Red (SSID)",
+    "wifi.password": "Contraseña",
+    "wifi.connect": "Conectar",
+    "wifi.connecting": "Conectando...",
+    "wifi.connected": "¡Conectado! IP:",
+    "wifi.error": "Error:",
+    "home.change_wifi": "Cambiar WiFi",
+    "lang.es": "Español",
+    "lang.en": "English",
+    "error.AUTH_FAILED": "Contraseña incorrecta.",
+    "error.SSID_NOT_FOUND": "La red no fue encontrada.",
+    "error.TIMEOUT": "La conexión tardó demasiado.",
+    "error.INVALID_INPUT": "Datos inválidos.",
+    "error.INTERNAL_ERROR": "Error interno."
+}
