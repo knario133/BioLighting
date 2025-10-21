@@ -166,6 +166,8 @@ void renderMenuValue() {
         case M_BLUE: valStr = String(b_val); break;
         case M_INTENSITY: valStr = String(intensity_val) + "%"; break;
         case M_LANG: valStr = (currentLang == ES) ? "Espanol" : "English"; break;
+        case M_WIFI_TOGGLE: valStr = wifiEnabled ? "ON" : "OFF"; break;
+        case M_WIFI_CHANGE: valStr = (wifiManager.getMode() == WiFiMode::AP) ? "AP" : "STA"; break;
         default: break;
     }
     lcdPrint16(1, (editMode ? "> " : "") + valStr);
