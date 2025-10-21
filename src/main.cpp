@@ -19,6 +19,7 @@
 enum Screen {
     SCR_HOME,
     SCR_MENU_MAIN,
+    SCR_EDIT_COLOR,
     SCR_MENU_WIFI,
     SCR_CONFIRM,
     SCR_INFO
@@ -47,7 +48,13 @@ enum EditColorSlot {
     COLOR_SLOT_I // For Intensity/Brightness
 };
 
+enum HomeCarouselSlot {
+    HOME_SLOT_RG, // Red, Green
+    HOME_SLOT_BI  // Blue, Intensity
+};
+
 Screen          uiScreen = SCR_HOME;
+HomeCarouselSlot homeSlot = HOME_SLOT_RG;
 MainMenuItem    mainMenuItem = MAIN_MENU_COLOR;
 WifiMenuItem    wifiMenuItem = WIFI_MENU_ENABLE;
 EditColorSlot   colorSlot = COLOR_SLOT_R;
@@ -74,6 +81,12 @@ const char* TR_ES[][2] = {
   {"color.g", "G"},
   {"color.b", "B"},
   {"color.brightness", "Brillo"},
+  {"home.red", "Rojo"},
+  {"home.green", "Verde"},
+  {"home.blue", "Azul"},
+  {"home.light", "Luz"},
+  {"home.no_wifi", "SIN WIFI"},
+  {"home.ap_mode", "Modo AP"},
   {"hint.next", "Click: siguiente"},
   {"wifi.title", "WiFi"},
   {"wifi.on", "ON"},
@@ -104,6 +117,12 @@ const char* TR_EN[][2] = {
   {"color.g", "G"},
   {"color.b", "B"},
   {"color.brightness", "Brightness"},
+  {"home.red", "Red"},
+  {"home.green", "Green"},
+  {"home.blue", "Blue"},
+  {"home.light", "Light"},
+  {"home.no_wifi", "NO WIFI"},
+  {"home.ap_mode", "AP Mode"},
   {"hint.next", "Click: next"},
   {"wifi.title", "WiFi"},
   {"wifi.on", "ON"},
@@ -229,6 +248,20 @@ const char* colorSlotKey(EditColorSlot slot) {
 // ===========================================================================
 // Rendering Functions
 // ===========================================================================
+void renderEditColor() {
+    lcdClearRow(0);
+    lcdClearRow(1);
+    String valStr;
+    switch (colorSlot) {
+        case COLOR_SLOT_R: valStr = String(r_val); break;
+        case COLOR_SLOT_G: valStr = String(g_val); break;
+        case COLOR_SLOT_B: valStr = String(b_val); break;
+        case COLOR_SLOT_I: valStr = String(intensity_val) + "%"; break;
+    }
+    lcdPrint16(0, "> " + tr(colorSlotKey(colorSlot)) + ": " + valStr);
+    lcdPrint16(1, tr("hint.next"));
+}
+
 void renderMainMenu() {
     lcdClearRow(0);
     lcdClearRow(1);
@@ -330,14 +363,27 @@ void renderWifiMenu() {
 void renderHome() {
     lcdClearRow(0);
     lcdClearRow(1);
-    String valStr;
-    switch (colorSlot) {
-        case COLOR_SLOT_R: valStr = String(r_val); break;
-        case COLOR_SLOT_G: valStr = String(g_val); break;
-        case COLOR_SLOT_B: valStr = String(b_val); break;
-        case COLOR_SLOT_I: valStr = String(intensity_val) + "%"; break;
+
+    String line1 = "";
+    if (wifiManager.isConnected()) {
+        line1 = wifiManager.getStaIp();
+    } else if (wifiManager.getMode() == WiFiMode::AP) {
+        line1 = (homeSlot == HOME_SLOT_RG) ? wifiManager.getApSsid() : tr("home.ap_mode");
+    } else {
+        line1 = tr("home.no_wifi");
     }
-    lcdPrint16(0, "> " + tr(colorSlotKey(colorSlot)) + ": " + valStr);
+
+    String line2 = "";
+    char buf[17];
+    if (homeSlot == HOME_SLOT_RG) {
+        snprintf(buf, sizeof(buf), "%s:%-3d %s:%-3d", tr("home.red").c_str(), r_val, tr("home.green").c_str(), g_val);
+    } else { // HOME_SLOT_BI
+        snprintf(buf, sizeof(buf), "%s:%-3d %s:%-3d", tr("home.blue").c_str(), b_val, tr("home.light").c_str(), intensity_val);
+    }
+    line2 = String(buf);
+
+    lcdPrint16(0, line1);
+    lcdPrint16(1, line2);
 }
 
 void render() {
@@ -348,6 +394,7 @@ void render() {
     switch (uiScreen) {
         case SCR_HOME: renderHome(); break;
         case SCR_MENU_MAIN: renderMainMenu(); break;
+        case SCR_EDIT_COLOR: renderEditColor(); break;
         case SCR_MENU_WIFI: renderWifiMenu(); break;
         case SCR_CONFIRM: renderConfirmScreen(); break;
         case SCR_INFO: renderInfoScreen(); break;
@@ -396,7 +443,7 @@ void handleEncoderEvents() {
     int dir = (int)encoder.getDirection();
     if (dir != 0) {
         lastInteractionTime = millis();
-        if (uiScreen == SCR_HOME) {
+        if (uiScreen == SCR_EDIT_COLOR) {
             applyDeltaToColor(dir);
         } else if (uiScreen == SCR_MENU_MAIN) {
             int next = (int)mainMenuItem + dir;
@@ -441,6 +488,8 @@ void handleEncoderEvents() {
             lastInteractionTime = millis();
             // --- Long Click Handler ---
             if (uiScreen == SCR_HOME) {
+                uiScreen = SCR_MENU_MAIN;
+            } else if (uiScreen == SCR_EDIT_COLOR) {
                 persistColor();
                 uiScreen = SCR_MENU_MAIN;
             } else if (uiScreen == SCR_MENU_WIFI || uiScreen == SCR_CONFIRM) {
@@ -457,12 +506,17 @@ void handleEncoderEvents() {
             lastInteractionTime = millis();
             // --- Short Click Handler ---
             if (uiScreen == SCR_HOME) {
+                uiScreen = SCR_MENU_MAIN;
+            } else if (uiScreen == SCR_EDIT_COLOR) {
                 int nextSlot = (int)colorSlot + 1;
                 if (nextSlot > (int)COLOR_SLOT_I) nextSlot = (int)COLOR_SLOT_R;
                 colorSlot = (EditColorSlot)nextSlot;
+                needsRender = true;
             } else if (uiScreen == SCR_MENU_MAIN) {
                 switch (mainMenuItem) {
-                    case MAIN_MENU_COLOR: /* Obsolete */ break;
+                    case MAIN_MENU_COLOR:
+                        uiScreen = SCR_EDIT_COLOR;
+                        break;
                     case MAIN_MENU_WIFI:
                         wifiMenuItem = WIFI_MENU_ENABLE; // Reset to first item
                         uiScreen = SCR_MENU_WIFI;
@@ -484,6 +538,13 @@ void handleEncoderEvents() {
                     case WIFI_MENU_STA_CHANGE:
                         confirmSelection = false; // Default to No
                         uiScreen = SCR_CONFIRM;
+                        break;
+                    case WIFI_MENU_STA_CONNECT:
+                        if (wifiManager.isConnected()) {
+                            wifiManager.disconnect();
+                        } else {
+                            wifiManager.connect();
+                        }
                         break;
                     case WIFI_MENU_AP_INFO:
                         uiScreen = SCR_INFO;
@@ -514,11 +575,18 @@ void loop() {
     wifiManager.loop();
     handleEncoderEvents();
 
-    if (uiScreen == SCR_HOME) {
+    // Handle carousels
+    if (uiScreen == SCR_EDIT_COLOR) {
         if (millis() - lastInteractionTime >= CAROUSEL_INTERVAL_MS) {
             int nextSlot = (int)colorSlot + 1;
             if (nextSlot > (int)COLOR_SLOT_I) nextSlot = (int)COLOR_SLOT_R;
             colorSlot = (EditColorSlot)nextSlot;
+            lastInteractionTime = millis();
+            needsRender = true;
+        }
+    } else if (uiScreen == SCR_HOME) {
+        if (millis() - lastInteractionTime >= CAROUSEL_INTERVAL_MS) {
+            homeSlot = (homeSlot == HOME_SLOT_RG) ? HOME_SLOT_BI : HOME_SLOT_RG;
             lastInteractionTime = millis();
             needsRender = true;
         }

@@ -137,6 +137,19 @@ void WiFiManager::setApCredentials(const String& ssid, const String& pass) {
     }
 }
 
+void WiFiManager::connect() {
+    if (_enabled && _currentMode == WiFiMode::STA) {
+        startSTAMode();
+    }
+}
+
+void WiFiManager::disconnect() {
+    if (_enabled && _currentMode == WiFiMode::STA) {
+        WiFi.disconnect();
+        Serial.println("[WiFi] Disconnected.");
+    }
+}
+
 // =================================================================
 // Private Helpers
 // =================================================================

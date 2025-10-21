@@ -25,6 +25,8 @@ public:
     String getApIp();
     String getApPass();
     void setApCredentials(const String& ssid, const String& pass);
+    void connect();
+    void disconnect();
 
 private:
     Storage& _storage;
