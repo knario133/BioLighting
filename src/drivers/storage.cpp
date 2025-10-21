@@ -55,43 +55,6 @@ void Storage::resetWifiCredentials() {
     preferences.end();
 }
 
-bool Storage::isWifiEnabled() {
-    preferences.begin(NVS_WIFI_NAMESPACE, true);
-    bool enabled = preferences.getBool(NVS_KEY_WIFI_ENABLED, true); // Enabled by default
-    preferences.end();
-    return enabled;
-}
-
-void Storage::setWifiEnabled(bool enabled) {
-    preferences.begin(NVS_WIFI_NAMESPACE, false);
-    preferences.putBool(NVS_KEY_WIFI_ENABLED, enabled);
-    preferences.end();
-}
-
-uint8_t Storage::getWifiMode() {
-    preferences.begin(NVS_WIFI_NAMESPACE, true);
-    // 1 (STA) is the default mode
-    uint8_t mode = preferences.getUChar(NVS_KEY_WIFI_MODE, 1);
-    preferences.end();
-    return mode;
-}
-
-void Storage::setWifiMode(uint8_t mode) {
-    preferences.begin(NVS_WIFI_NAMESPACE, false);
-    preferences.putUChar(NVS_KEY_WIFI_MODE, mode);
-    preferences.end();
-}
-
-bool Storage::loadApCredentials(String& ssid) {
-    preferences.begin(NVS_WIFI_NAMESPACE, true);
-    bool success = preferences.isKey(NVS_KEY_AP_SSID);
-    if (success) {
-        ssid = preferences.getString(NVS_KEY_AP_SSID, "");
-    }
-    preferences.end();
-    return success && ssid.length() > 0;
-}
-
 bool Storage::loadApCredentials(String& ssid, String& pass) {
     preferences.begin(NVS_WIFI_NAMESPACE, true);
     bool success = preferences.isKey(NVS_KEY_AP_SSID);
@@ -110,11 +73,17 @@ void Storage::saveApCredentials(const String& ssid, const String& pass) {
     preferences.end();
 }
 
-String Storage::getApPass() {
+uint8_t Storage::getWifiMode() {
     preferences.begin(NVS_WIFI_NAMESPACE, true);
-    String pass = preferences.getString(NVS_KEY_AP_PASS, "");
+    uint8_t mode = preferences.getUChar(NVS_KEY_WIFI_MODE, 1); // Default to STA
     preferences.end();
-    return pass;
+    return mode;
+}
+
+void Storage::setWifiMode(uint8_t mode) {
+    preferences.begin(NVS_WIFI_NAMESPACE, false);
+    preferences.putUChar(NVS_KEY_WIFI_MODE, mode);
+    preferences.end();
 }
 
 uint8_t Storage::loadLanguage() {
