@@ -13,7 +13,6 @@ public:
     WiFiMode getMode();
     String getStaIp();
     String getApSsid();
-    String getApPass();
     void forceApMode();
 
 private:

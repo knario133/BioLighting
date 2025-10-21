@@ -67,15 +67,6 @@ String WiFiManager::getApSsid() {
     return "BioLighting-AP-" + String(mac_suffix);
 }
 
-String WiFiManager::getApPass() {
-    String ssid, pass;
-    if (_storage.loadApCredentials(ssid, pass)) {
-        return pass;
-    }
-    // Return default password if none is stored
-    return "Biosync";
-}
-
 void WiFiManager::forceApMode() {
     _storage.resetWifiCredentials();
     _currentMode = WiFiMode::AP;
@@ -86,7 +77,7 @@ void WiFiManager::forceApMode() {
 
 void WiFiManager::startAPMode() {
     Serial.println("Starting AP mode.");
-    String ssid, pass;
+    String ssid, pass; // pass is unused but loadApCredentials needs it
     if (!_storage.loadApCredentials(ssid, pass)) {
         // Generate and save default credentials
         uint8_t mac[6];
@@ -94,15 +85,12 @@ void WiFiManager::startAPMode() {
         char mac_suffix[5];
         sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
         ssid = "BioLighting-AP-" + String(mac_suffix);
-
-        pass = "Biosync";
-
-
-        _storage.saveApCredentials(ssid, pass);
+        // No password for open network, just save the SSID
+        _storage.saveApCredentials(ssid, "");
     }
 
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(ssid.c_str(), pass.c_str());
+    WiFi.softAP(ssid.c_str()); // No password argument for open network
 
     dnsServer = std::unique_ptr<DNSServer>(new DNSServer());
     dnsServer->start(53, "*", WiFi.softAPIP());
