@@ -85,7 +85,7 @@ void WiFiManager::startAPMode() {
         char mac_suffix[5];
         sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
         ssid = "BioLighting-AP-" + String(mac_suffix);
-        pass = "BioLight-" + String(mac_suffix);
+        pass = "Biosync123";
         _storage.saveApCredentials(ssid, pass);
     }
 
