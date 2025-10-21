@@ -96,11 +96,24 @@ void WiFiManager::startAPMode() {
     portalServer = std::unique_ptr<AsyncWebServer>(new AsyncWebServer(80));
 
     // Serve all static files from the root of LittleFS
-    portalServer->serveStatic("/", LittleFS, "/");
+    portalServer->serveStatic("/", LittleFS, "/ui_web/");
+
+    portalServer->on("/api/wifi/save", HTTP_POST, [this](AsyncWebServerRequest *request) {
+        String ssid = request->arg("ssid");
+        String pass = request->arg("pass");
+        if (ssid.length() > 0) {
+            _storage.saveWifiCredentials(ssid, pass);
+            request->send(200, "application/json", "{\"success\":true}");
+            delay(1000);
+            ESP.restart();
+        } else {
+            request->send(400, "application/json", "{\"success\":false, \"error\":\"SSID cannot be empty.\"}");
+        }
+    });
 
     // Redirect any not-found requests to the setup page, for captive portal functionality
     portalServer->onNotFound([](AsyncWebServerRequest *request) {
-        request->redirect("setup.html");
+        request->redirect("/index.html");
     });
 
     portalServer->begin();

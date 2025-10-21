@@ -213,6 +213,47 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- UI Update & Sync ---
+    const saveWifiCredentials = async (ssid, pass) => {
+        const formData = new URLSearchParams();
+        formData.append('ssid', ssid);
+        formData.append('pass', pass);
+
+        try {
+            const response = await fetch('/api/wifi/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData,
+            });
+
+            if (response.ok) {
+                Swal.fire({
+                    title: 'Guardado',
+                    text: 'Las credenciales de WiFi se han guardado. El dispositivo se reiniciará.',
+                    icon: 'success',
+                    timer: 5000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                });
+            } else {
+                const errorData = await response.json();
+                Swal.fire({
+                    title: 'Error',
+                    text: errorData.error || 'No se pudieron guardar las credenciales.',
+                    icon: 'error'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                title: 'Error de Conexión',
+                text: 'No se pudo conectar con el dispositivo.',
+                icon: 'error'
+            });
+            console.error('Failed to save wifi credentials:', error);
+        }
+    };
+
     const toHex = (c) => `0${(c || 0).toString(16)}`.slice(-2);
 
     // This function updates ONLY the UI controls from a state object
@@ -295,7 +336,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     dom.buttons.changeWifi.addEventListener('click', () => {
-        window.location.href = '/setup.html';
+        const t = translations[lang];
+        Swal.fire({
+            title: t.homeChangeWifi,
+            html: `
+                <input id="swal-ssid" class="swal2-input" placeholder="SSID">
+                <input id="swal-pass" class="swal2-input" placeholder="Password" type="password">
+            `,
+            confirmButtonText: 'Guardar',
+            showCancelButton: true,
+            cancelButtonText: 'Cancelar',
+            preConfirm: () => {
+                const ssid = Swal.getPopup().querySelector('#swal-ssid').value;
+                const pass = Swal.getPopup().querySelector('#swal-pass').value;
+                if (!ssid) {
+                    Swal.showValidationMessage(`El SSID no puede estar vacío`);
+                }
+                return { ssid, pass };
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                saveWifiCredentials(result.value.ssid, result.value.pass);
+            }
+        });
     });
 
     Object.keys(stages).forEach(stageName => {
