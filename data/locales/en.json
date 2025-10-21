@@ -1,0 +1,20 @@
+{
+    "wifi.title": "WiFi Setup",
+    "wifi.refresh": "Refresh",
+    "wifi.network": "Network",
+    "wifi.hidden_network": "Hidden Network",
+    "wifi.ssid": "Network Name (SSID)",
+    "wifi.password": "Password",
+    "wifi.connect": "Connect",
+    "wifi.connecting": "Connecting...",
+    "wifi.connected": "Connected! IP:",
+    "wifi.error": "Error:",
+    "home.change_wifi": "Change WiFi",
+    "lang.es": "Español",
+    "lang.en": "English",
+    "error.AUTH_FAILED": "Authentication failed.",
+    "error.SSID_NOT_FOUND": "Network not found.",
+    "error.TIMEOUT": "Connection timed out.",
+    "error.INVALID_INPUT": "Invalid input.",
+    "error.INTERNAL_ERROR": "Internal error."
+}

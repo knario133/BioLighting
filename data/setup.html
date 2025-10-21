@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="wifi.title">WiFi Setup</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f0f0; margin: 0; }
+        .container { background: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h1 { text-align: center; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; }
+        select, input[type="text"], input[type="password"] { width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+        .btn { display: inline-block; padding: 0.75rem 1rem; border: none; border-radius: 4px; color: #fff; background-color: #007bff; cursor: pointer; text-align: center; width: 100%; box-sizing: border-box; }
+        .btn-secondary { background-color: #6c757d; }
+        .hidden { display: none; }
+        #feedback { margin-top: 1rem; padding: 1rem; border-radius: 4px; text-align: center; }
+        .feedback-success { background-color: #d4edda; color: #155724; }
+        .feedback-error { background-color: #f8d7da; color: #721c24; }
+        .feedback-info { background-color: #d1ecf1; color: #0c5460; }
+        .lang-selector { text-align: right; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="lang-selector">
+            <button id="lang-es" data-lang="es">ES</button> | <button id="lang-en" data-lang="en">EN</button>
+        </div>
+        <h1 data-i18n="wifi.title">WiFi Setup</h1>
+
+        <div class="form-group">
+            <label for="networks" data-i18n="wifi.network">Network</label>
+            <select id="networks"></select>
+        </div>
+
+        <div class="form-group">
+            <input type="checkbox" id="hidden-ssid-check">
+            <label for="hidden-ssid-check" data-i18n="wifi.hidden_network">Hidden Network</label>
+        </div>
+
+        <div id="manual-ssid-group" class="form-group hidden">
+            <label for="manual-ssid" data-i18n="wifi.ssid">SSID</label>
+            <input type="text" id="manual-ssid" placeholder="Enter SSID">
+        </div>
+
+        <div class="form-group">
+            <label for="password" data-i18n="wifi.password">Password</label>
+            <input type="password" id="password">
+        </div>
+
+        <button id="connect-btn" class="btn" data-i18n="wifi.connect">Connect</button>
+        <button id="refresh-btn" class="btn btn-secondary" style="margin-top: 0.5rem;" data-i18n="wifi.refresh">Refresh</button>
+
+        <div id="feedback" class="hidden"></div>
+    </div>
+
+    <script src="/js/main.js"></script>
+</body>
+</html>
