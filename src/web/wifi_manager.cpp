@@ -67,6 +67,19 @@ String WiFiManager::getApSsid() {
     return "BioLighting-AP-" + String(mac_suffix);
 }
 
+String WiFiManager::getApPass() {
+    String ssid, pass;
+    if (_storage.loadApCredentials(ssid, pass)) {
+        return pass;
+    }
+    // Return default password if none is stored
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    char mac_suffix[5];
+    sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
+    return "BioLight-" + String(mac_suffix);
+}
+
 void WiFiManager::forceApMode() {
     _storage.resetWifiCredentials();
     _currentMode = WiFiMode::AP;

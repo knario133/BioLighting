@@ -54,6 +54,7 @@ const char* TR_ES[][2] = {
   {"home.no_wifi", "SIN WIFI"},
   {"home.ap_mode", "Modo AP"},
   {"home.wifi_off", "WIFI APAGADO"},
+  {"home.ap_pass", "Clave:"},
 };
 
 const char* TR_EN[][2] = {
@@ -72,6 +73,7 @@ const char* TR_EN[][2] = {
   {"home.light", "I"},
   {"home.no_wifi", "NO WIFI"},
   {"home.ap_mode", "AP Mode"},
+  {"home.ap_pass", "Pass:"},
 };
 
 String tr(const char* key) {
@@ -206,7 +208,11 @@ void renderHome(bool forceRedraw = false) {
     } else if (wifiManager.isConnected()) {
         line1 = wifiManager.getStaIp();
     } else if (wifiManager.getMode() == WiFiMode::AP) {
-        line1 = (homeSlot == HOME_SLOT_RG) ? wifiManager.getApSsid() : tr("home.ap_mode");
+        if (homeSlot == HOME_SLOT_RG) {
+            line1 = wifiManager.getApSsid();
+        } else {
+            line1 = tr("home.ap_pass") + " " + wifiManager.getApPass();
+        }
     } else {
         line1 = tr("home.no_wifi");
     }
