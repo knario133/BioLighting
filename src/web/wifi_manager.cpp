@@ -73,11 +73,7 @@ String WiFiManager::getApPass() {
         return pass;
     }
     // Return default password if none is stored
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
-    char mac_suffix[5];
-    sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
-    return "BioLight-" + String(mac_suffix);
+    return "Biosync";
 }
 
 void WiFiManager::forceApMode() {
@@ -98,7 +94,10 @@ void WiFiManager::startAPMode() {
         char mac_suffix[5];
         sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
         ssid = "BioLighting-AP-" + String(mac_suffix);
-        pass = "Biosync000";
+
+        pass = "Biosync";
+
+
         _storage.saveApCredentials(ssid, pass);
     }
 
