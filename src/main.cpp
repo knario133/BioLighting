@@ -19,9 +19,8 @@
 enum Screen {
     SCR_HOME,
     SCR_MENU_MAIN,
-    SCR_EDIT_COLOR,
     SCR_MENU_WIFI,
-    SCR_EDIT_TEXT,
+    SCR_CONFIRM,
     SCR_INFO
 };
 
@@ -53,6 +52,7 @@ MainMenuItem    mainMenuItem = MAIN_MENU_COLOR;
 WifiMenuItem    wifiMenuItem = WIFI_MENU_ENABLE;
 EditColorSlot   colorSlot = COLOR_SLOT_R;
 bool            editMode = false; // Will be used for text input
+bool            confirmSelection = false; // false=No, true=Yes
 
 // State for color carousel
 unsigned long lastInteractionTime = 0;
@@ -89,6 +89,9 @@ const char* TR_ES[][2] = {
   {"msg.ap_active", "AP activo"},
   {"msg.error", "Error"},
   {"msg.restarting_wifi", "Reiniciando WiFi"},
+  {"confirm.title", "Cambiar a AP?"},
+  {"confirm.yes", "Si"},
+  {"confirm.no", "No"},
 };
 
 const char* TR_EN[][2] = {
@@ -116,6 +119,9 @@ const char* TR_EN[][2] = {
   {"msg.ap_active", "AP active"},
   {"msg.error", "Error"},
   {"msg.restarting_wifi", "Restarting WiFi"},
+  {"confirm.title", "Switch to AP?"},
+  {"confirm.yes", "Yes"},
+  {"confirm.no", "No"},
 };
 
 String tr(const char* key) {
@@ -188,12 +194,6 @@ void lcdPrint16(uint8_t row, const String& s) {
 // ===========================================================================
 // Business Logic
 // ===========================================================================
-String buildCompactLine2() {
-  char buf[17];
-  snprintf(buf, sizeof(buf), "R%03dG%03dB%03dI%03d", r_val, g_val, b_val, intensity_val);
-  return String(buf);
-}
-
 void persistColor() {
     prefs.begin("biolight", false);
     prefs.putUChar("r", r_val);
@@ -229,20 +229,6 @@ const char* colorSlotKey(EditColorSlot slot) {
 // ===========================================================================
 // Rendering Functions
 // ===========================================================================
-void renderEditColor() {
-    lcdClearRow(0);
-    lcdClearRow(1);
-    String valStr;
-    switch (colorSlot) {
-        case COLOR_SLOT_R: valStr = String(r_val); break;
-        case COLOR_SLOT_G: valStr = String(g_val); break;
-        case COLOR_SLOT_B: valStr = String(b_val); break;
-        case COLOR_SLOT_I: valStr = String(intensity_val) + "%"; break;
-    }
-    lcdPrint16(0, "> " + tr(colorSlotKey(colorSlot)) + ": " + valStr);
-    lcdPrint16(1, tr("hint.next"));
-}
-
 void renderMainMenu() {
     lcdClearRow(0);
     lcdClearRow(1);
@@ -265,6 +251,21 @@ void renderMainMenu() {
         lcdPrint16(0, line3);
         lcdPrint16(1, line4);
     }
+}
+
+void renderConfirmScreen() {
+    lcdClearRow(0);
+    lcdClearRow(1);
+    lcdPrint16(0, tr("confirm.title"));
+    String line2 = "";
+    if (confirmSelection) { // Yes is selected
+        line2 += "> " + tr("confirm.yes");
+        line2 += "  " + tr("confirm.no");
+    } else { // No is selected
+        line2 += "  " + tr("confirm.yes");
+        line2 += " > " + tr("confirm.no");
+    }
+    lcdPrint16(1, line2);
 }
 
 void renderInfoScreen() {
@@ -327,10 +328,16 @@ void renderWifiMenu() {
 }
 
 void renderHome() {
-  lcdClearRow(0);
-  lcdPrint16(0, tr("title"));
-  lcdClearRow(1);
-  lcdPrint16(1, buildCompactLine2());
+    lcdClearRow(0);
+    lcdClearRow(1);
+    String valStr;
+    switch (colorSlot) {
+        case COLOR_SLOT_R: valStr = String(r_val); break;
+        case COLOR_SLOT_G: valStr = String(g_val); break;
+        case COLOR_SLOT_B: valStr = String(b_val); break;
+        case COLOR_SLOT_I: valStr = String(intensity_val) + "%"; break;
+    }
+    lcdPrint16(0, "> " + tr(colorSlotKey(colorSlot)) + ": " + valStr);
 }
 
 void render() {
@@ -341,8 +348,8 @@ void render() {
     switch (uiScreen) {
         case SCR_HOME: renderHome(); break;
         case SCR_MENU_MAIN: renderMainMenu(); break;
-        case SCR_EDIT_COLOR: renderEditColor(); break;
         case SCR_MENU_WIFI: renderWifiMenu(); break;
+        case SCR_CONFIRM: renderConfirmScreen(); break;
         case SCR_INFO: renderInfoScreen(); break;
     }
     needsRender = false;
@@ -389,7 +396,7 @@ void handleEncoderEvents() {
     int dir = (int)encoder.getDirection();
     if (dir != 0) {
         lastInteractionTime = millis();
-        if (uiScreen == SCR_EDIT_COLOR) {
+        if (uiScreen == SCR_HOME) {
             applyDeltaToColor(dir);
         } else if (uiScreen == SCR_MENU_MAIN) {
             int next = (int)mainMenuItem + dir;
@@ -418,6 +425,9 @@ void handleEncoderEvents() {
             }
             wifiMenuItem = (WifiMenuItem)constrain(next, 0, (int)WIFI_MENU_BACK);
             needsRender = true;
+        } else if (uiScreen == SCR_CONFIRM) {
+            confirmSelection = !confirmSelection;
+            needsRender = true;
         }
     }
 
@@ -430,10 +440,10 @@ void handleEncoderEvents() {
             longPressTriggered = true;
             lastInteractionTime = millis();
             // --- Long Click Handler ---
-            if (uiScreen == SCR_EDIT_COLOR) {
+            if (uiScreen == SCR_HOME) {
                 persistColor();
                 uiScreen = SCR_MENU_MAIN;
-            } else if (uiScreen == SCR_MENU_WIFI) {
+            } else if (uiScreen == SCR_MENU_WIFI || uiScreen == SCR_CONFIRM) {
                 uiScreen = SCR_MENU_MAIN;
             } else if (uiScreen == SCR_INFO) {
                 uiScreen = SCR_MENU_WIFI;
@@ -447,15 +457,16 @@ void handleEncoderEvents() {
             lastInteractionTime = millis();
             // --- Short Click Handler ---
             if (uiScreen == SCR_HOME) {
-                uiScreen = SCR_MENU_MAIN;
-            } else if (uiScreen == SCR_EDIT_COLOR) {
                 int nextSlot = (int)colorSlot + 1;
                 if (nextSlot > (int)COLOR_SLOT_I) nextSlot = (int)COLOR_SLOT_R;
                 colorSlot = (EditColorSlot)nextSlot;
             } else if (uiScreen == SCR_MENU_MAIN) {
                 switch (mainMenuItem) {
-                    case MAIN_MENU_COLOR: uiScreen = SCR_EDIT_COLOR; break;
-                    case MAIN_MENU_WIFI: uiScreen = SCR_MENU_WIFI; break;
+                    case MAIN_MENU_COLOR: /* Obsolete */ break;
+                    case MAIN_MENU_WIFI:
+                        wifiMenuItem = WIFI_MENU_ENABLE; // Reset to first item
+                        uiScreen = SCR_MENU_WIFI;
+                        break;
                     case MAIN_MENU_LANG: currentLang = (currentLang == ES) ? EN : ES; break; // Simple toggle
                     case MAIN_MENU_BACK: uiScreen = SCR_HOME; break;
                 }
@@ -471,10 +482,8 @@ void handleEncoderEvents() {
                         break;
                     }
                     case WIFI_MENU_STA_CHANGE:
-                        storage.resetWifiCredentials();
-                        wifiManager.setMode(WiFiMode::AP);
-                        wifiMenuItem = WIFI_MENU_ENABLE; // Go back to a safe state
-                        // Here you might want to show a "restarting wifi" message
+                        confirmSelection = false; // Default to No
+                        uiScreen = SCR_CONFIRM;
                         break;
                     case WIFI_MENU_AP_INFO:
                         uiScreen = SCR_INFO;
@@ -484,6 +493,13 @@ void handleEncoderEvents() {
                         break;
                     default: break;
                 }
+            } else if (uiScreen == SCR_CONFIRM) {
+                if (confirmSelection) { // "Yes" was selected
+                    storage.resetWifiCredentials();
+                    wifiManager.setMode(WiFiMode::AP);
+                }
+                uiScreen = SCR_MENU_WIFI;
+                wifiMenuItem = WIFI_MENU_ENABLE;
             }
             needsRender = true;
         }
@@ -498,7 +514,7 @@ void loop() {
     wifiManager.loop();
     handleEncoderEvents();
 
-    if (uiScreen == SCR_EDIT_COLOR) {
+    if (uiScreen == SCR_HOME) {
         if (millis() - lastInteractionTime >= CAROUSEL_INTERVAL_MS) {
             int nextSlot = (int)colorSlot + 1;
             if (nextSlot > (int)COLOR_SLOT_I) nextSlot = (int)COLOR_SLOT_R;
