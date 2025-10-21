@@ -34,10 +34,10 @@ Lang currentLang = ES;
 
 const char* TR_ES[][2] = {
   {"title", "BioLighting v2"},
-  {"M_RED", "Rojo"},
-  {"M_GREEN", "Verde"},
-  {"M_BLUE", "Azul"},
-  {"M_INTENSITY", "Intensidad"},
+  {"M_RED", "R"},
+  {"M_GREEN", "G"},
+  {"M_BLUE", "B"},
+  {"M_INTENSITY", "I"},
   {"M_LANG", "Idioma"},
   {"M_WIFI_TOGGLE", "WiFi Con/Des"},
   {"M_WIFI_CHANGE", "Cambiar Red"},
@@ -52,10 +52,10 @@ const char* TR_ES[][2] = {
 
 const char* TR_EN[][2] = {
   {"title", "BioLighting v2"},
-  {"M_RED", "Red"},
-  {"M_GREEN", "Green"},
-  {"M_BLUE", "Blue"},
-  {"M_INTENSITY", "Intensity"},
+  {"M_RED", "R"},
+  {"M_GREEN", "G"},
+  {"M_BLUE", "B"},
+  {"M_INTENSITY", "I"},
   {"M_LANG", "Language"},
   {"M_WIFI_TOGGLE", "WiFi On/Off"},
   {"M_WIFI_CHANGE", "Change WiFi"},
@@ -170,7 +170,15 @@ void renderMenu() {
   renderMenuValue();
 }
 
-void renderHome() {
+void renderHome(bool forceRedraw = false) {
+    static String lastLine1 = "", lastLine2 = "";
+
+    if (forceRedraw) {
+        lastLine1 = "";
+        lastLine2 = "";
+        lcd.clear();
+    }
+
     String line1 = "";
     if (wifiManager.isConnected()) {
         line1 = wifiManager.getStaIp();
@@ -189,7 +197,6 @@ void renderHome() {
     }
     line2 = String(buf);
 
-    static String lastLine1 = "", lastLine2 = "";
     if (line1 != lastLine1) { lcdPrint16(0, line1); lastLine1 = line1; }
     if (line2 != lastLine2) { lcdPrint16(1, line2); lastLine2 = line2; }
 }
@@ -229,7 +236,7 @@ void onShortClick() {
     } else if (uiScreen == MENU && !editMode) {
         if (currentItem == M_BACK) {
             uiScreen = HOME;
-            renderHome();
+            renderHome(true); // Force redraw
         } else {
             uiScreen = EDIT;
             editMode = true;
@@ -261,7 +268,7 @@ void onLongClick() {
         renderMenu();
     } else if (uiScreen == MENU) {
         uiScreen = HOME;
-        renderHome();
+        renderHome(true); // Force redraw
     }
 }
 
