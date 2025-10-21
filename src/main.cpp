@@ -15,7 +15,7 @@
 // ===========================================================================
 // UI State & Menu Definitions
 // ===========================================================================
-enum Screen { HOME, MENU, EDIT };
+enum Screen { HOME, MENU, EDIT, WIFI_TOGGLE, WIFI_CHANGE };
 enum MenuItem { M_RED, M_GREEN, M_BLUE, M_INTENSITY, M_LANG, M_WIFI_TOGGLE, M_WIFI_CHANGE, M_BACK };
 enum HomeCarouselSlot { HOME_SLOT_RG, HOME_SLOT_BI };
 
@@ -25,6 +25,11 @@ HomeCarouselSlot homeSlot = HOME_SLOT_RG;
 unsigned long lastHomeCarouselSwitch = 0;
 const int CAROUSEL_INTERVAL_MS = 2000;
 bool editMode = false;
+
+// State for interactive menus
+bool wifiEnabled = true;
+int wifiToggleSelection = 0; // 0: ON, 1: OFF
+int wifiChangeSelection = 0; // 0: STA, 1: AP
 
 // ===========================================================================
 // i18n (Internationalization)
@@ -48,6 +53,7 @@ const char* TR_ES[][2] = {
   {"home.light", "I"},
   {"home.no_wifi", "SIN WIFI"},
   {"home.ap_mode", "Modo AP"},
+  {"home.wifi_off", "WIFI APAGADO"},
 };
 
 const char* TR_EN[][2] = {
@@ -131,6 +137,7 @@ void persistIfNeeded() {
     prefs.putUChar("g", g_val);
     prefs.putUChar("b", b_val);
     prefs.putUChar("int", intensity_val);
+    prefs.putBool("wifi_on", wifiEnabled);
     prefs.end();
 }
 
@@ -170,6 +177,18 @@ void renderMenu() {
   renderMenuValue();
 }
 
+void renderWifiToggle() {
+    lcdPrint16(0, tr("M_WIFI_TOGGLE"));
+    String s = (wifiToggleSelection == 0) ? "[o] ON  [ ] OFF" : "[ ] ON  [o] OFF";
+    lcdPrint16(1, s);
+}
+
+void renderWifiChange() {
+    lcdPrint16(0, tr("M_WIFI_CHANGE"));
+    String s = (wifiChangeSelection == 0) ? "[o] STA [ ] AP " : "[ ] STA [o] AP ";
+    lcdPrint16(1, s);
+}
+
 void renderHome(bool forceRedraw = false) {
     static String lastLine1 = "", lastLine2 = "";
 
@@ -180,7 +199,9 @@ void renderHome(bool forceRedraw = false) {
     }
 
     String line1 = "";
-    if (wifiManager.isConnected()) {
+    if (!wifiEnabled) {
+        line1 = tr("home.wifi_off");
+    } else if (wifiManager.isConnected()) {
         line1 = wifiManager.getStaIp();
     } else if (wifiManager.getMode() == WiFiMode::AP) {
         line1 = (homeSlot == HOME_SLOT_RG) ? wifiManager.getApSsid() : tr("home.ap_mode");
@@ -213,6 +234,7 @@ void setup() {
     g_val = prefs.getUChar("g", 255);
     b_val = prefs.getUChar("b", 255);
     intensity_val = prefs.getUChar("int", 100);
+    wifiEnabled = prefs.getBool("wifi_on", true);
     prefs.end();
     ledDriver.initLeds();
     ledDriver.setColor(r_val, g_val, b_val, intensity_val);
@@ -220,8 +242,10 @@ void setup() {
     lcd.backlight();
     lcd.clear();
     pinMode(ENCODER_SW_PIN, INPUT_PULLUP);
-    wifiManager.begin();
-    if (wifiManager.isConnected()) webServer.begin();
+    if (wifiEnabled) {
+      wifiManager.begin();
+      if (wifiManager.isConnected()) webServer.begin();
+    }
     renderHome();
     Serial.println("[main] Setup complete.");
 }
@@ -237,6 +261,14 @@ void onShortClick() {
         if (currentItem == M_BACK) {
             uiScreen = HOME;
             renderHome(true); // Force redraw
+        } else if (currentItem == M_WIFI_TOGGLE) {
+            uiScreen = WIFI_TOGGLE;
+            wifiToggleSelection = wifiEnabled ? 0 : 1;
+            renderWifiToggle();
+        } else if (currentItem == M_WIFI_CHANGE) {
+            uiScreen = WIFI_CHANGE;
+            wifiChangeSelection = (wifiManager.getMode() == WiFiMode::AP);
+            renderWifiChange();
         } else {
             uiScreen = EDIT;
             editMode = true;
@@ -247,6 +279,43 @@ void onShortClick() {
         editMode = false;
         persistIfNeeded();
         renderMenu();
+    } else if (uiScreen == WIFI_TOGGLE) {
+        bool willBeEnabled = (wifiToggleSelection == 0);
+        if (willBeEnabled != wifiEnabled) {
+            wifiEnabled = willBeEnabled;
+            persistIfNeeded();
+            if (wifiEnabled) {
+                lcd.clear();
+                lcdPrint16(0, "Encendiendo WiFi...");
+                wifiManager.begin();
+                if (wifiManager.getMode() == WiFiMode::AP) {
+                    lcdPrint16(1, "Modo AP Activado");
+                }
+                delay(2000);
+            } else {
+                lcd.clear();
+                lcdPrint16(0, "Apagando WiFi...");
+                WiFi.disconnect(true);
+                delay(1000);
+            }
+        }
+        uiScreen = HOME;
+        renderHome(true);
+    } else if (uiScreen == WIFI_CHANGE) {
+        bool switchToAp = (wifiChangeSelection == 1);
+        lcd.clear();
+        if (switchToAp) {
+            lcdPrint16(0, "Iniciando AP...");
+            lcdPrint16(1, "Borrando red...");
+            wifiManager.forceApMode();
+            delay(2000);
+        } else {
+            lcdPrint16(0, "Conectando WiFi...");
+            wifiManager.begin();
+            delay(2000);
+        }
+        uiScreen = HOME;
+        renderHome(true);
     }
 }
 
@@ -282,6 +351,12 @@ void onEncoderTurn(int dir) {
     } else if (uiScreen == EDIT) {
         applyDeltaToCurrentItem(dir);
         renderMenuValue();
+    } else if (uiScreen == WIFI_TOGGLE) {
+        wifiToggleSelection = 1 - wifiToggleSelection; // Flip between 0 and 1
+        renderWifiToggle();
+    } else if (uiScreen == WIFI_CHANGE) {
+        wifiChangeSelection = 1 - wifiChangeSelection; // Flip between 0 and 1
+        renderWifiChange();
     }
 }
 
