@@ -67,6 +67,13 @@ String WiFiManager::getApSsid() {
     return "BioLighting-AP-" + String(mac_suffix);
 }
 
+void WiFiManager::forceApMode() {
+    _storage.resetWifiCredentials();
+    _currentMode = WiFiMode::AP;
+    _storage.setWifiMode((uint8_t)_currentMode);
+    startAPMode();
+}
+
 
 void WiFiManager::startAPMode() {
     Serial.println("Starting AP mode.");

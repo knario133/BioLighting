@@ -13,6 +13,7 @@ public:
     WiFiMode getMode();
     String getStaIp();
     String getApSsid();
+    void forceApMode();
 
 private:
     Storage& _storage;
