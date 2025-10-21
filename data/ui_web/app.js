@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateUi(state);
 
             currentStep = (currentStep + 1) % testSequence.length;
-        }, 50); // Send a request every 50ms
+        }, 2000); // Send a request every 50ms
     };
 
     // --- Initialization ---
