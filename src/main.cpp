@@ -107,7 +107,7 @@ const char* menuItemKey(MenuItem item) {
 Storage     storage;
 LedDriver   ledDriver;
 RestApi     restApi(storage);
-WiFiManager wifiManager(storage, restApi);
+WiFiManager wifiManager(storage);
 WebServer   webServer(restApi);
 Preferences prefs;
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
@@ -250,8 +250,12 @@ void setup() {
     lcd.clear();
     pinMode(ENCODER_SW_PIN, INPUT_PULLUP);
     if (wifiEnabled) {
-      wifiManager.begin();
-      if (wifiManager.isConnected()) webServer.begin();
+        wifiManager.begin();
+        if (wifiManager.getMode() == WiFiMode::STA && wifiManager.isConnected()) {
+            webServer.begin(WebServer::Mode::STA);
+        } else if (wifiManager.getMode() == WiFiMode::AP) {
+            webServer.begin(WebServer::Mode::AP);
+        }
     }
     renderHome();
     Serial.println("[main] Setup complete.");
@@ -296,7 +300,10 @@ void onShortClick() {
                 lcdPrint16(0, "Encendiendo WiFi...");
                 wifiManager.begin();
                 if (wifiManager.getMode() == WiFiMode::AP) {
+                    webServer.begin(WebServer::Mode::AP);
                     lcdPrint16(1, "Modo AP Activado");
+                } else if (wifiManager.isConnected()) {
+                    webServer.begin(WebServer::Mode::STA);
                 }
                 delay(2000);
             } else {
@@ -315,6 +322,7 @@ void onShortClick() {
             lcdPrint16(0, "Iniciando AP...");
             lcdPrint16(1, "Borrando red...");
             wifiManager.forceApMode();
+            webServer.begin(WebServer::Mode::AP);
             delay(2000);
         } else {
             lcdPrint16(0, "Conectando WiFi...");

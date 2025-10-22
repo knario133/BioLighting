@@ -1,19 +1,12 @@
 #include "wifi_manager.h"
 #include "../config.h"
 #include <WiFi.h>
-#include <ESPAsyncWebServer.h>
 #include <DNSServer.h>
 #include <memory>
 
-#include <LittleFS.h>
-
-static std::unique_ptr<AsyncWebServer> portalServer;
 static std::unique_ptr<DNSServer> dnsServer;
 
-#include "rest.h"
-WiFiManager::WiFiManager(Storage& storage, RestApi& restApi) :
-    _storage(storage),
-    _restApi(restApi) {
+WiFiManager::WiFiManager(Storage& storage) : _storage(storage) {
     _currentMode = WiFiMode::STA;
 }
 
@@ -78,58 +71,23 @@ void WiFiManager::forceApMode() {
 
 void WiFiManager::startAPMode() {
     Serial.println("Starting AP mode.");
-
-    // Ensure LittleFS is mounted before serving files
-    if (!LittleFS.begin()) {
-        Serial.println("An Error has occurred while mounting LittleFS");
-        return;
-    }
-
-    String ssid, pass; // pass is unused but loadApCredentials needs it
+    String ssid, pass;
     if (!_storage.loadApCredentials(ssid, pass)) {
-        // Generate and save default credentials
         uint8_t mac[6];
         WiFi.macAddress(mac);
         char mac_suffix[5];
         sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
         ssid = "BioLighting-AP-" + String(mac_suffix);
-        // No password for open network, just save the SSID
         _storage.saveApCredentials(ssid, "");
     }
 
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(ssid.c_str()); // No password argument for open network
+    WiFi.softAP(ssid.c_str());
 
     dnsServer = std::unique_ptr<DNSServer>(new DNSServer());
     dnsServer->start(53, "*", WiFi.softAPIP());
 
-    portalServer = std::unique_ptr<AsyncWebServer>(new AsyncWebServer(80));
-
-    // Register API handlers on the portal server as well
-    _restApi.registerHandlers(*portalServer);
-
-    // Serve all static files from the root of LittleFS
-    portalServer->serveStatic("/", LittleFS, "/ui_web/").setDefaultFile("setup.html");
-
-    portalServer->on("/api/wifi/save", HTTP_POST, [this](AsyncWebServerRequest *request) {
-        String ssid = request->arg("ssid");
-        String pass = request->arg("pass");
-        if (ssid.length() > 0) {
-            _storage.saveWifiCredentials(ssid, pass);
-            request->send(200, "application/json", "{\"success\":true}");
-            delay(1000);
-            ESP.restart();
-        } else {
-            request->send(400, "application/json", "{\"success\":false, \"error\":\"SSID cannot be empty.\"}");
-        }
-    });
-
-    // Redirect any not-found requests to the setup page, for captive portal functionality
-    portalServer->onNotFound([](AsyncWebServerRequest *request) {
-        request->redirect("/setup.html");
-    });
-
-    portalServer->begin();
+    Serial.println("AP mode and DNS server started.");
 }
 
 void WiFiManager::startSTAMode() {
