@@ -106,8 +106,8 @@ const char* menuItemKey(MenuItem item) {
 // ===========================================================================
 Storage     storage;
 LedDriver   ledDriver;
-WiFiManager wifiManager(storage);
 RestApi     restApi(storage);
+WiFiManager wifiManager(storage, restApi);
 WebServer   webServer(restApi);
 Preferences prefs;
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
