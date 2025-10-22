@@ -1,12 +1,15 @@
 #pragma once
 
 #include "../drivers/storage.h"
+#include "rest.h"
 
 enum class WiFiMode { OFF, STA, AP };
 
+class RestApi;
+
 class WiFiManager {
 public:
-    WiFiManager(Storage& storage);
+    WiFiManager(Storage& storage, RestApi& restApi);
     void begin();
     void loop();
     bool isConnected();
@@ -17,6 +20,7 @@ public:
 
 private:
     Storage& _storage;
+    RestApi& _restApi;
     WiFiMode _currentMode;
     void startAPMode();
     void startSTAMode();

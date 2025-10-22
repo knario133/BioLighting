@@ -10,7 +10,10 @@
 static std::unique_ptr<AsyncWebServer> portalServer;
 static std::unique_ptr<DNSServer> dnsServer;
 
-WiFiManager::WiFiManager(Storage& storage) : _storage(storage) {
+#include "rest.h"
+WiFiManager::WiFiManager(Storage& storage, RestApi& restApi) :
+    _storage(storage),
+    _restApi(restApi) {
     _currentMode = WiFiMode::STA;
 }
 
@@ -101,6 +104,9 @@ void WiFiManager::startAPMode() {
     dnsServer->start(53, "*", WiFi.softAPIP());
 
     portalServer = std::unique_ptr<AsyncWebServer>(new AsyncWebServer(80));
+
+    // Register API handlers on the portal server as well
+    _restApi.registerHandlers(*portalServer);
 
     // Serve all static files from the root of LittleFS
     portalServer->serveStatic("/", LittleFS, "/ui_web/").setDefaultFile("setup.html");
