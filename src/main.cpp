@@ -18,12 +18,14 @@
 enum Screen { HOME, MENU, EDIT, WIFI_TOGGLE, WIFI_CHANGE };
 enum MenuItem { M_RED, M_GREEN, M_BLUE, M_INTENSITY, M_LANG, M_WIFI_TOGGLE, M_WIFI_CHANGE, M_BACK };
 enum HomeCarouselSlot { HOME_SLOT_RG, HOME_SLOT_BI };
+enum HomeApInfoSlot { AP_INFO_MODE, AP_INFO_SSID, AP_INFO_IP };
 
 Screen uiScreen = HOME;
 MenuItem currentItem = M_RED;
 HomeCarouselSlot homeSlot = HOME_SLOT_RG;
-int apCarouselSlot = 0; // For AP mode carousel on line 1
+HomeApInfoSlot homeApInfoSlot = AP_INFO_MODE;
 unsigned long lastHomeCarouselSwitch = 0;
+unsigned long lastHomeApInfoSwitch = 0;
 const int CAROUSEL_INTERVAL_MS = 2000;
 bool editMode = false;
 
@@ -53,7 +55,7 @@ const char* TR_ES[][2] = {
   {"home.blue", "A"},
   {"home.light", "I"},
   {"home.no_wifi", "SIN WIFI"},
-  {"home.ap_mode", "Modo AP"},
+  {"home.ap_mode", "MODO AP"},
   {"home.wifi_off", "WIFI APAGADO"},
 };
 
@@ -72,7 +74,8 @@ const char* TR_EN[][2] = {
   {"home.blue", "B"},
   {"home.light", "I"},
   {"home.no_wifi", "NO WIFI"},
-  {"home.ap_mode", "AP Mode"},
+  {"home.ap_mode", "AP MODE"},
+  {"home.wifi_off", "WIFI OFF"},
 };
 
 String tr(const char* key) {
@@ -106,8 +109,8 @@ const char* menuItemKey(MenuItem item) {
 // ===========================================================================
 Storage     storage;
 LedDriver   ledDriver;
-RestApi     restApi(storage);
 WiFiManager wifiManager(storage);
+RestApi     restApi(storage);
 WebServer   webServer(restApi);
 Preferences prefs;
 LiquidCrystal_I2C lcd(LCD_ADDR, 16, 2);
@@ -207,10 +210,16 @@ void renderHome(bool forceRedraw = false) {
     } else if (wifiManager.isConnected()) {
         line1 = wifiManager.getStaIp();
     } else if (wifiManager.getMode() == WiFiMode::AP) {
-        switch (apCarouselSlot) {
-            case 0: line1 = tr("home.ap_mode"); break;
-            case 1: line1 = wifiManager.getApSsid(); break;
-            case 2: line1 = "IP: 192.168.4.1"; break;
+        switch(homeApInfoSlot) {
+            case AP_INFO_MODE:
+                line1 = tr("home.ap_mode");
+                break;
+            case AP_INFO_SSID:
+                line1 = wifiManager.getApSsid();
+                break;
+            case AP_INFO_IP:
+                line1 = wifiManager.getApIp();
+                break;
         }
     } else {
         line1 = tr("home.no_wifi");
@@ -250,14 +259,10 @@ void setup() {
     lcd.clear();
     pinMode(ENCODER_SW_PIN, INPUT_PULLUP);
     if (wifiEnabled) {
-        wifiManager.begin();
-        if (wifiManager.getMode() == WiFiMode::STA && wifiManager.isConnected()) {
-            webServer.begin(WebServer::Mode::STA);
-        } else if (wifiManager.getMode() == WiFiMode::AP) {
-            webServer.begin(WebServer::Mode::AP);
-        }
+      wifiManager.begin();
+      webServer.begin(); // Server runs in AP and STA mode
     }
-    renderHome();
+    renderHome(true);
     Serial.println("[main] Setup complete.");
 }
 
@@ -277,9 +282,11 @@ void onShortClick() {
             wifiToggleSelection = wifiEnabled ? 0 : 1;
             renderWifiToggle();
         } else if (currentItem == M_WIFI_CHANGE) {
-            uiScreen = WIFI_CHANGE;
-            wifiChangeSelection = (wifiManager.getMode() == WiFiMode::AP);
-            renderWifiChange();
+            // This option now simply forces a restart into AP mode
+            lcd.clear();
+            lcdPrint16(0, "Reiniciando...");
+            lcdPrint16(1, "Modo AP Forzado");
+            wifiManager.forceApMode(); // This will reset creds and restart
         } else {
             uiScreen = EDIT;
             editMode = true;
@@ -295,42 +302,14 @@ void onShortClick() {
         if (willBeEnabled != wifiEnabled) {
             wifiEnabled = willBeEnabled;
             persistIfNeeded();
-            if (wifiEnabled) {
-                lcd.clear();
-                lcdPrint16(0, "Encendiendo WiFi...");
-                wifiManager.begin();
-                if (wifiManager.getMode() == WiFiMode::AP) {
-                    webServer.begin(WebServer::Mode::AP);
-                    lcdPrint16(1, "Modo AP Activado");
-                } else if (wifiManager.isConnected()) {
-                    webServer.begin(WebServer::Mode::STA);
-                }
-                delay(2000);
-            } else {
-                lcd.clear();
-                lcdPrint16(0, "Apagando WiFi...");
-                WiFi.disconnect(true);
-                delay(1000);
-            }
-        }
-        uiScreen = HOME;
-        renderHome(true);
-    } else if (uiScreen == WIFI_CHANGE) {
-        bool switchToAp = (wifiChangeSelection == 1);
-        lcd.clear();
-        if (switchToAp) {
-            lcdPrint16(0, "Iniciando AP...");
-            lcdPrint16(1, "Borrando red...");
-            wifiManager.forceApMode();
-            webServer.begin(WebServer::Mode::AP);
-            delay(2000);
+            lcd.clear();
+            lcdPrint16(0, "Reiniciando...");
+            delay(1000);
+            ESP.restart();
         } else {
-            lcdPrint16(0, "Conectando WiFi...");
-            wifiManager.begin();
-            delay(2000);
+            uiScreen = HOME;
+            renderHome(true);
         }
-        uiScreen = HOME;
-        renderHome(true);
     }
 }
 
@@ -369,9 +348,6 @@ void onEncoderTurn(int dir) {
     } else if (uiScreen == WIFI_TOGGLE) {
         wifiToggleSelection = 1 - wifiToggleSelection; // Flip between 0 and 1
         renderWifiToggle();
-    } else if (uiScreen == WIFI_CHANGE) {
-        wifiChangeSelection = 1 - wifiChangeSelection; // Flip between 0 and 1
-        renderWifiChange();
     }
 }
 
@@ -379,7 +355,6 @@ void onEncoderTurn(int dir) {
 // Main Loop
 // ===========================================================================
 void loop() {
-    wifiManager.loop();
     encoder.tick();
 
     // --- Handle Encoder Turn ---
@@ -409,15 +384,23 @@ void loop() {
         longPressHandled = false;
     }
 
-    // --- Handle Home Carousel ---
-    if (uiScreen == HOME && millis() - lastHomeCarouselSwitch > CAROUSEL_INTERVAL_MS) {
-        lastHomeCarouselSwitch = millis();
-        // AP mode carousel for line 1
-        if (wifiManager.getMode() == WiFiMode::AP) {
-            apCarouselSlot = (apCarouselSlot + 1) % 3;
+    // --- Handle Home Carousels ---
+    unsigned long now = millis();
+    bool needsRender = false;
+
+    if (uiScreen == HOME) {
+        if (now - lastHomeCarouselSwitch > CAROUSEL_INTERVAL_MS) {
+            homeSlot = (homeSlot == HOME_SLOT_RG) ? HOME_SLOT_BI : HOME_SLOT_RG;
+            lastHomeCarouselSwitch = now;
+            needsRender = true;
         }
-        // General carousel for line 2
-        homeSlot = (homeSlot == HOME_SLOT_RG) ? HOME_SLOT_BI : HOME_SLOT_RG;
-        renderHome();
+        if (wifiManager.getMode() == WiFiMode::AP && now - lastHomeApInfoSwitch > CAROUSEL_INTERVAL_MS) {
+            homeApInfoSlot = (HomeApInfoSlot)(((int)homeApInfoSlot + 1) % 3);
+            lastHomeApInfoSwitch = now;
+            needsRender = true;
+        }
+        if (needsRender) {
+            renderHome();
+        }
     }
 }

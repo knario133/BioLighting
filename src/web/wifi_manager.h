@@ -8,16 +8,14 @@ class WiFiManager {
 public:
     WiFiManager(Storage& storage);
     void begin();
-    void loop();
     bool isConnected();
     WiFiMode getMode();
     String getStaIp();
     String getApSsid();
+    String getApIp();
     void forceApMode();
 
 private:
     Storage& _storage;
     WiFiMode _currentMode;
-    void startAPMode();
-    void startSTAMode();
 };
