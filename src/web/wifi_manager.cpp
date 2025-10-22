@@ -75,6 +75,13 @@ void WiFiManager::forceApMode() {
 
 void WiFiManager::startAPMode() {
     Serial.println("Starting AP mode.");
+
+    // Ensure LittleFS is mounted before serving files
+    if (!LittleFS.begin()) {
+        Serial.println("An Error has occurred while mounting LittleFS");
+        return;
+    }
+
     String ssid, pass; // pass is unused but loadApCredentials needs it
     if (!_storage.loadApCredentials(ssid, pass)) {
         // Generate and save default credentials
