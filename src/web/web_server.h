@@ -8,9 +8,8 @@ class AsyncWebServer;
 
 class WebServer {
 public:
-    enum class Mode { STA, AP };
     WebServer(RestApi& restApi);
-    void begin(Mode mode);
+    void begin();
 
 private:
     RestApi& _restApi;

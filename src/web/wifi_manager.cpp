@@ -1,35 +1,38 @@
 #include "wifi_manager.h"
 #include "../config.h"
 #include <WiFi.h>
-#include <DNSServer.h>
-#include <memory>
-
-static std::unique_ptr<DNSServer> dnsServer;
 
 WiFiManager::WiFiManager(Storage& storage) : _storage(storage) {
-    _currentMode = WiFiMode::STA;
+    // El modo se determinará dinámicamente en `begin`.
+    _currentMode = WiFiMode::OFF;
 }
 
 void WiFiManager::begin() {
-    _currentMode = (WiFiMode)_storage.getWifiMode();
-    if (_currentMode == WiFiMode::STA) {
-        String ssid, pass;
-        if (_storage.loadWifiCredentials(ssid, pass)) {
-            startSTAMode();
-        } else {
-            // No credentials, switch to AP mode to allow configuration
-            _currentMode = WiFiMode::AP;
-            _storage.setWifiMode((uint8_t)_currentMode);
-            startAPMode();
-        }
-    } else {
-        startAPMode();
-    }
-}
+    // 1. Configurar siempre el modo AP_STA
+    WiFi.mode(WIFI_AP_STA);
 
-void WiFiManager::loop() {
-    if (dnsServer) {
-        dnsServer->processNextRequest();
+    // 2. Iniciar el Punto de Acceso (AP)
+    String ssid_ap;
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    char mac_suffix[5];
+    sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
+    ssid_ap = "BioLighting-AP-" + String(mac_suffix);
+
+    // Inicia el AP sin contraseña. La IP por defecto es 192.168.4.1
+    WiFi.softAP(ssid_ap.c_str());
+    Serial.printf("AP Mode started. SSID: %s, IP: %s\n", ssid_ap.c_str(), WiFi.softAPIP().toString().c_str());
+
+    // 3. Intentar conectar a la red guardada (STA)
+    String ssid_sta, pass_sta;
+    if (_storage.loadWifiCredentials(ssid_sta, pass_sta)) {
+        Serial.printf("Attempting to connect to saved WiFi: %s\n", ssid_sta.c_str());
+        WiFi.begin(ssid_sta.c_str(), pass_sta.c_str());
+
+        // Espera no bloqueante (la conexión real se gestiona en segundo plano)
+        // El estado se comprobará con isConnected()
+    } else {
+        Serial.println("No saved STA credentials. Running in AP mode only.");
     }
 }
 
@@ -38,74 +41,35 @@ bool WiFiManager::isConnected() {
 }
 
 WiFiMode WiFiManager::getMode() {
-    return _currentMode;
+    // La lógica de modo ahora es dinámica
+    if (WiFi.status() == WL_CONNECTED) {
+        return WiFiMode::STA;
+    }
+    // Si no está conectado como STA, consideramos que está en modo AP
+    // ya que el AP siempre está activo.
+    return WiFiMode::AP;
 }
 
 String WiFiManager::getStaIp() {
     if (isConnected()) {
         return WiFi.localIP().toString();
     }
-    return "0.0.0.0";
+    return ""; // Devuelve cadena vacía si no está conectado
 }
 
 String WiFiManager::getApSsid() {
-    String ssid, pass;
-    if (_storage.loadApCredentials(ssid, pass)) {
-        return ssid;
-    }
-    // Return default SSID if none is stored
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
-    char mac_suffix[5];
-    sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
-    return "BioLighting-AP-" + String(mac_suffix);
+    return WiFi.softAPSSID();
+}
+
+String WiFiManager::getApIp() {
+    return WiFi.softAPIP().toString();
 }
 
 void WiFiManager::forceApMode() {
+    // Simplemente borra las credenciales y reinicia.
+    // Al arrancar, no encontrará credenciales y permanecerá en modo AP.
     _storage.resetWifiCredentials();
-    _currentMode = WiFiMode::AP;
-    _storage.setWifiMode((uint8_t)_currentMode);
-    startAPMode();
-}
-
-
-void WiFiManager::startAPMode() {
-    Serial.println("Starting AP mode.");
-    String ssid, pass;
-    if (!_storage.loadApCredentials(ssid, pass)) {
-        uint8_t mac[6];
-        WiFi.macAddress(mac);
-        char mac_suffix[5];
-        sprintf(mac_suffix, "%02X%02X", mac[4], mac[5]);
-        ssid = "BioLighting-AP-" + String(mac_suffix);
-        _storage.saveApCredentials(ssid, "");
-    }
-
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(ssid.c_str());
-
-    dnsServer = std::unique_ptr<DNSServer>(new DNSServer());
-    dnsServer->start(53, "*", WiFi.softAPIP());
-
-    Serial.println("AP mode and DNS server started.");
-}
-
-void WiFiManager::startSTAMode() {
-    String ssid, pass;
-    _storage.loadWifiCredentials(ssid, pass);
-    Serial.printf("Connecting to saved WiFi: %s\n", ssid.c_str());
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid.c_str(), pass.c_str());
-
-    unsigned long startTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startTime < 15000) {
-        delay(500);
-        Serial.print(".");
-    }
-
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.printf("\nConnected! IP: %s\n", WiFi.localIP().toString().c_str());
-    } else {
-        Serial.println("\nFailed to connect. Will try again on reboot.");
-    }
+    Serial.println("WiFi credentials reset. Restarting to apply changes.");
+    delay(1000);
+    ESP.restart();
 }
