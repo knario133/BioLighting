@@ -96,7 +96,7 @@ void WiFiManager::startAPMode() {
     portalServer = std::unique_ptr<AsyncWebServer>(new AsyncWebServer(80));
 
     // Serve all static files from the root of LittleFS
-    portalServer->serveStatic("/", LittleFS, "/ui_web/");
+    portalServer->serveStatic("/", LittleFS, "/ui_web/").setDefaultFile("setup.html");
 
     portalServer->on("/api/wifi/save", HTTP_POST, [this](AsyncWebServerRequest *request) {
         String ssid = request->arg("ssid");
@@ -113,7 +113,7 @@ void WiFiManager::startAPMode() {
 
     // Redirect any not-found requests to the setup page, for captive portal functionality
     portalServer->onNotFound([](AsyncWebServerRequest *request) {
-        request->redirect("/index.html");
+        request->redirect("/setup.html");
     });
 
     portalServer->begin();

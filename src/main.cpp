@@ -22,6 +22,7 @@ enum HomeCarouselSlot { HOME_SLOT_RG, HOME_SLOT_BI };
 Screen uiScreen = HOME;
 MenuItem currentItem = M_RED;
 HomeCarouselSlot homeSlot = HOME_SLOT_RG;
+int apCarouselSlot = 0; // For AP mode carousel on line 1
 unsigned long lastHomeCarouselSwitch = 0;
 const int CAROUSEL_INTERVAL_MS = 2000;
 bool editMode = false;
@@ -206,10 +207,10 @@ void renderHome(bool forceRedraw = false) {
     } else if (wifiManager.isConnected()) {
         line1 = wifiManager.getStaIp();
     } else if (wifiManager.getMode() == WiFiMode::AP) {
-        if (homeSlot == HOME_SLOT_RG) {
-            line1 = wifiManager.getApSsid();
-        } else {
-            line1 = tr("home.ap_mode");
+        switch (apCarouselSlot) {
+            case 0: line1 = tr("home.ap_mode"); break;
+            case 1: line1 = wifiManager.getApSsid(); break;
+            case 2: line1 = "IP: 192.168.4.1"; break;
         }
     } else {
         line1 = tr("home.no_wifi");
@@ -402,8 +403,13 @@ void loop() {
 
     // --- Handle Home Carousel ---
     if (uiScreen == HOME && millis() - lastHomeCarouselSwitch > CAROUSEL_INTERVAL_MS) {
-        homeSlot = (homeSlot == HOME_SLOT_RG) ? HOME_SLOT_BI : HOME_SLOT_RG;
         lastHomeCarouselSwitch = millis();
+        // AP mode carousel for line 1
+        if (wifiManager.getMode() == WiFiMode::AP) {
+            apCarouselSlot = (apCarouselSlot + 1) % 3;
+        }
+        // General carousel for line 2
+        homeSlot = (homeSlot == HOME_SLOT_RG) ? HOME_SLOT_BI : HOME_SLOT_RG;
         renderHome();
     }
 }
