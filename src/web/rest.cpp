@@ -3,10 +3,87 @@
 #include <ArduinoJson.h>
 #include <ESPAsyncWebServer.h>
 #include <Preferences.h>
+#include <WiFi.h>
+#include <AsyncJson.h>
+
+// Variables globales para el escaneo WiFi asíncrono
+volatile bool scanRunning = false;
+volatile bool scanComplete = false;
+String scanResultsJson = "[]"; // Para almacenar los resultados
+TaskHandle_t scanTaskHandle = NULL; // Handle para la tarea de escaneo
 
 extern LedDriver ledDriver;
 extern Preferences prefs;
 extern uint8_t r_val, g_val, b_val, intensity_val;
+
+// Tarea para realizar el escaneo WiFi en segundo plano
+void wifiScanTask(void *pvParameters) {
+    scanRunning = true;
+    scanComplete = false;
+    log_i("Iniciando escaneo WiFi en tarea separada...");
+
+    int n = WiFi.scanNetworks(); // Llamada bloqueante, pero ahora en su propia tarea
+
+    log_i("Escaneo completado. %d redes encontradas.", n);
+
+    JsonDocument jsonDoc; // Usar JsonDocument en lugar de DynamicJsonDocument
+    jsonDoc.to<JsonArray>();
+    JsonArray networks = jsonDoc.as<JsonArray>();
+
+    if (n > 0) {
+        for (int i = 0; i < n; ++i) {
+            JsonObject net = networks.add<JsonObject>(); // Usar add<JsonObject>()
+            net["ssid"] = WiFi.SSID(i);
+            net["rssi"] = WiFi.RSSI(i);
+            net["secure"] = WiFi.encryptionType(i) != WIFI_AUTH_OPEN;
+        }
+    }
+    // std::sort no funciona directamente con JsonArray. Debemos copiar a un vector.
+    std::vector<JsonObject> networks_vec;
+    for (JsonObject net : networks) {
+        networks_vec.push_back(net);
+    }
+
+    // Ordenar el vector
+    std::sort(networks_vec.begin(), networks_vec.end(), [](const JsonObject &a, const JsonObject &b) {
+        return a["rssi"].as<int>() > b["rssi"].as<int>();
+    });
+
+    // Crear un nuevo documento JSON con los datos ordenados
+    JsonDocument sortedDoc;
+    sortedDoc.to<JsonArray>();
+    JsonArray sortedNetworks = sortedDoc.as<JsonArray>();
+    for (const auto& net : networks_vec) {
+        sortedNetworks.add(net);
+    }
+
+    scanResultsJson = ""; // Limpia la cadena antes de serializar
+    serializeJson(sortedDoc, scanResultsJson);
+
+    scanComplete = true;
+    scanRunning = false;
+    scanTaskHandle = NULL; // Indica que la tarea ya no existe
+    vTaskDelete(NULL);    // Elimina la tarea una vez completada
+}
+
+void handleScanWifiResults(AsyncWebServerRequest *request) {
+    if (scanRunning) {
+        // El escaneo aún está en progreso
+        request->send(202, "application/json", "{\"message\":\"Scan in progress...\"}");
+    } else if (scanComplete) {
+        // El escaneo terminó, devuelve los resultados
+        // Envía directamente la cadena JSON pre-serializada
+         AsyncResponseStream *response = request->beginResponseStream("application/json");
+         response->print(scanResultsJson); // Envía el JSON almacenado
+         request->send(response);
+        // Opcional: podrías resetear scanComplete aquí si quieres que los resultados solo se lean una vez
+        // scanComplete = false;
+    } else {
+        // No hay resultados disponibles (no se ha escaneado o ya se leyeron)
+        request->send(404, "application/json", "{\"message\":\"No scan results available. Initiate scan first using /api/wifi/scan.\"}");
+    }
+}
+
 
 RestApi::RestApi(Storage& storage) : _storage(storage) {}
 
@@ -49,6 +126,8 @@ void RestApi::registerHandlers(AsyncWebServer& server) {
     server.on("/api/wifi/reset", HTTP_POST, std::bind(&RestApi::handleWifiReset, this, std::placeholders::_1));
     server.on("/api/wifi/status", HTTP_GET, std::bind(&RestApi::handleGetWifiStatus, this, std::placeholders::_1));
     server.on("/api/wifi/scan", HTTP_GET, std::bind(&RestApi::handleGetWifiScan, this, std::placeholders::_1));
+    server.on("/api/wifi/results", HTTP_GET, handleScanWifiResults);
+
 
     AsyncCallbackJsonWebHandler* postConnectHandler = new AsyncCallbackJsonWebHandler("/api/wifi/connect",
         std::bind(&RestApi::handlePostWifiConnect, this, std::placeholders::_1, std::placeholders::_2));
@@ -129,29 +208,30 @@ void RestApi::handlePostLang(AsyncWebServerRequest *request, const JsonVariant &
 }
 
 void RestApi::handleGetWifiScan(AsyncWebServerRequest *request) {
-    bool force = request->hasParam("force") && request->getParam("force")->value() == "true";
-    if (!force && _last_scan_ms > 0 && millis() - _last_scan_ms < 30000) {
-        request->send(200, "application/json", _scan_cache);
+    if (scanRunning) {
+        // Ya hay un escaneo en progreso
+        request->send(429, "application/json", "{\"message\":\"Scan already in progress\"}");
         return;
     }
 
-    int n = WiFi.scanNetworks();
+    // Inicia la tarea de escaneo en el núcleo 0 (o 1 si prefieres) con prioridad 1
+    xTaskCreatePinnedToCore(
+        wifiScanTask,       /* Función de la Tarea */
+        "wifiScanTask",     /* Nombre de la Tarea */
+        4096,               /* Tamaño de la pila (ajusta si es necesario) */
+        NULL,               /* Parámetro de la tarea */
+        1,                  /* Prioridad (baja) */
+        &scanTaskHandle,    /* Handle de la tarea */
+        0);                 /* Núcleo donde se ejecutará (0 o 1) */
 
-    JsonDocument doc;
-    JsonArray networks = doc.to<JsonArray>();
-
-    for (int i = 0; i < n; ++i) {
-        JsonObject network = networks.add<JsonObject>();
-        network["ssid"] = WiFi.SSID(i);
-        network["rssi"] = WiFi.RSSI(i);
-        network["secure"] = WiFi.encryptionType(i) != WIFI_AUTH_OPEN;
+    if (scanTaskHandle == NULL) {
+         log_e("Error al crear la tarea de escaneo WiFi");
+         request->send(500, "application/json", "{\"message\":\"Failed to start scan task\"}");
+         return;
     }
 
-    _scan_cache = "";
-    serializeJson(doc, _scan_cache);
-    _last_scan_ms = millis();
-
-    request->send(200, "application/json", _scan_cache);
+    // Responde inmediatamente indicando que el escaneo ha comenzado
+    request->send(202, "application/json", "{\"message\":\"Scan initiated. Check /api/wifi/results later.\"}");
 }
 
 void RestApi::handleGetPresets(AsyncWebServerRequest *request) {
