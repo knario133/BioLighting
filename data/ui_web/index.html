@@ -93,9 +93,9 @@
 
     <div class="actions">
        <h2 id="actions-title">Acciones</h2>
-       <button id="btnChangeWifi" class="btn btn-danger" type="button" data-i18n="wifi.change">Cambiar WiFi</button>
-       <button id="btn-test-mode" class="btn btn-primary" type="button">Modo de Pruebas</button>
-       <button id="reset-button" class="btn btn-danger" type="button">Reset</button>
+       <button id="btnChangeWifi" class="btn btn-danger" type="button" data-i18n="wifi.change" onclick="openWifiModal()">Cambiar WiFi</button>
+       <button id="btn-test-mode" class="btn btn-primary" type="button" onclick="handleTestModeClick()">Modo de Pruebas</button>
+       <button id="reset-button" class="btn btn-danger" type="button" onclick="handleResetClick()">Reset</button>
     </div>
   </main>
 
