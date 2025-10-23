@@ -28,20 +28,17 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmTestModeText: "¿Iniciar el modo de pruebas?",
             yes: "Sí",
             no: "No",
-            // New WiFi keys
-            wifi: {
-                change: "Cambiar Wi-Fi",
-                scanning: "Buscando redes...",
-                select: "Selecciona una red",
-                password: "Contraseña",
-                connect: "Conectar",
-                retry: "Reintentar",
-                noneFound: "No se encontraron redes.",
-                success: "¡Conectado!",
-                successText: "La conexión Wi-Fi se ha establecido correctamente.",
-                error: "Error de Conexión",
-                errorText: "No se pudo conectar a la red seleccionada."
-            }
+            "wifi.change": "Cambiar Wi-Fi",
+            "wifi.scanning": "Buscando redes...",
+            "wifi.select": "Selecciona una red",
+            "wifi.password": "Contraseña",
+            "wifi.connect": "Conectar",
+            "wifi.retry": "Reintentar",
+            "wifi.noneFound": "No se encontraron redes.",
+            "wifi.success": "¡Conectado con éxito!",
+            "wifi.error": "Error al conectar. Verifica la contraseña.",
+            "wifi.verifying": "Verificando conexión...",
+            "wifi.unreachable": "Dispositivo no accesible. Conéctate a la misma red y reintenta."
         },
         en: {
             title: "Lighting Control",
@@ -70,20 +67,17 @@ document.addEventListener('DOMContentLoaded', () => {
             confirmTestModeText: "Start test mode?",
             yes: "Yes",
             no: "No",
-             // New WiFi keys
-            wifi: {
-                change: "Change Wi-Fi",
-                scanning: "Scanning for networks...",
-                select: "Select a network",
-                password: "Password",
-                connect: "Connect",
-                retry: "Retry",
-                noneFound: "No networks found.",
-                success: "Connected!",
-                successText: "The Wi-Fi connection has been established successfully.",
-                error: "Connection Error",
-                errorText: "Could not connect to the selected network."
-            }
+            "wifi.change": "Change Wi-Fi",
+            "wifi.scanning": "Scanning for networks...",
+            "wifi.select": "Select a network",
+            "wifi.password": "Password",
+            "wifi.connect": "Connect",
+            "wifi.retry": "Retry",
+            "wifi.noneFound": "No networks found.",
+            "wifi.success": "Successfully connected!",
+            "wifi.error": "Failed to connect. Check the password.",
+            "wifi.verifying": "Verifying connection...",
+            "wifi.unreachable": "Device unreachable. Connect to the same network and retry."
         }
     };
 
@@ -173,10 +167,25 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.buttons.flowering.textContent = t.btnFlowering;
         dom.buttons.fullSpectrum.textContent = t.btnFullSpectrum;
         dom.buttons.transition.textContent = t.btnTransition;
-        dom.buttons.changeWifi.textContent = t.wifi.change;
+        // The wifi button text is now handled by the generic i18n attribute selector
+        document.querySelector('[data-i18n="wifi.change"]').textContent = t["wifi.change"];
     }
 
     // --- API Communication ---
+    async function fetchWithTimeout(resource, options = {}) {
+        const { timeout = 8000 } = options;
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), timeout);
+
+        const response = await fetch(resource, {
+            ...options,
+            signal: controller.signal,
+            cache: 'no-store'
+        });
+        clearTimeout(id);
+        return response;
+    }
+
     const confirmAndSetColor = (state, text = null) => {
         const t = translations[lang];
         const confirmText = text || t.confirmText;
@@ -239,6 +248,47 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- UI Update & Sync ---
+    const saveWifiCredentials = async (ssid, pass) => {
+        const formData = new URLSearchParams();
+        formData.append('ssid', ssid);
+        formData.append('pass', pass);
+
+        try {
+            const response = await fetch('/api/wifi/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData,
+            });
+
+            if (response.ok) {
+                Swal.fire({
+                    title: 'Guardado',
+                    text: 'Las credenciales de WiFi se han guardado. El dispositivo se reiniciará.',
+                    icon: 'success',
+                    timer: 5000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                });
+            } else {
+                const errorData = await response.json();
+                Swal.fire({
+                    title: 'Error',
+                    text: errorData.error || 'No se pudieron guardar las credenciales.',
+                    icon: 'error'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                title: 'Error de Conexión',
+                text: 'No se pudo conectar con el dispositivo.',
+                icon: 'error'
+            });
+            console.error('Failed to save wifi credentials:', error);
+        }
+    };
+
     const toHex = (c) => `0${(c || 0).toString(16)}`.slice(-2);
 
     // This function updates ONLY the UI controls from a state object
@@ -320,97 +370,176 @@ document.addEventListener('DOMContentLoaded', () => {
         confirmAndSetColor(previewState);
     });
 
-    // --- New WiFi Change Logic ---
-    dom.buttons.changeWifi.addEventListener('click', () => {
-        const t = translations[lang].wifi;
+    // --- New Wi-Fi Modal Logic ---
+    const openWifiModal = async () => {
+        let scanAbortController = new AbortController();
+        let pollAbortController = new AbortController();
 
-        const scanAndRender = async () => {
+        const swalQueue = Swal.mixin({
+            showCancelButton: false,
+            showConfirmButton: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+        });
+
+        const scanStep = async () => {
+            scanAbortController = new AbortController();
             try {
-                const response = await fetch('/api/wifi/scan');
-                const data = await response.json();
-                const networks = data.networks || [];
+                const response = await fetchWithTimeout('/api/wifi/scan', { signal: scanAbortController.signal });
+                const networks = await response.json();
 
                 if (networks.length > 0) {
-                    const options = networks.map(net => `<option value="${net.ssid}">${net.ssid} (${net.rssi}dBm)</option>`).join('');
-                    Swal.update({
+                    const options = networks.map(net => `<option value="${net.ssid}">${net.ssid} (${net.rssi} dBm)</option>`).join('');
+                    return {
                         html: `
                             <select id="ssidSelect" class="swal2-select">${options}</select>
-                            <input type="password" id="wifiPwd" class="swal2-input" placeholder="${t.password}">
+                            <input type="password" id="wifiPwd" class="swal2-input" placeholder="${translations[lang]['wifi.password']}">
                         `,
-                        confirmButtonText: t.connect,
-                        showDenyButton: false,
-                        denyButtonText: '',
-                        showLoaderOnConfirm: true
-                    });
+                        confirmButtonText: translations[lang]['wifi.connect'],
+                        preConfirm: () => {
+                            const ssid = document.getElementById('ssidSelect').value;
+                            const password = document.getElementById('wifiPwd').value;
+                            if (!ssid) return false;
+                            return { ssid, password };
+                        }
+                    };
                 } else {
-                    Swal.update({
-                        html: `<p>${t.noneFound}</p>`,
-                        confirmButtonText: t.retry,
-                        showDenyButton: false,
-                        denyButtonText: '',
-                        showLoaderOnConfirm: true
-                    });
+                    return {
+                        text: translations[lang]['wifi.noneFound'],
+                        confirmButtonText: translations[lang]['wifi.retry'],
+                        preConfirm: () => false // This will prevent closing and allow retry
+                    };
                 }
             } catch (error) {
-                console.error('WiFi scan failed:', error);
-                Swal.update({
-                    html: `<p>${t.errorText}</p>`,
-                    confirmButtonText: t.retry,
-                    showDenyButton: false,
-                    denyButtonText: '',
-                    showLoaderOnConfirm: true
-                });
+                console.error("Scan failed:", error);
+                return {
+                    text: translations[lang]['wifi.error'],
+                    confirmButtonText: translations[lang]['wifi.retry'],
+                    preConfirm: () => false
+                };
             }
         };
 
-        Swal.fire({
-            title: t.change,
-            html: `<p>${t.scanning}</p>`,
-            didOpen: () => {
-                Swal.showLoading();
-                scanAndRender();
-            },
-            preConfirm: async () => {
-                const ssidSelect = document.getElementById('ssidSelect');
-                // If ssidSelect is null, it means we are in the "retry" state
-                if (!ssidSelect) {
-                    await scanAndRender();
-                    return false; // Prevent modal from closing
-                }
+        const pollStep = async (pollController) => {
+            let attempts = 0;
+            const backoff = [2000, 5000, 10000]; // 2s, 5s, 10s
 
-                const ssid = ssidSelect.value;
-                const password = document.getElementById('wifiPwd').value;
+            const checkStatus = async () => {
+                if (pollController.signal.aborted) throw new Error('Polling aborted');
 
                 try {
-                    const response = await fetch('/api/wifi/connect', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ssid, password })
-                    });
+                    const response = await fetchWithTimeout('/api/wifi/status', { signal: pollController.signal });
+                    const data = await response.json();
 
-                    if (!response.ok) { // Handles HTTP errors like 500
-                        throw new Error(`Server responded with status: ${response.status}`);
-                    }
+                    if (data.mode === 'STA' && data.status === 'connected') return true;
 
-                    const result = await response.json();
-                    if (result.success) {
-                        return result;
-                    } else {
-                        throw new Error(result.message || 'Connection failed');
-                    }
+                    attempts++;
+                    const delay = backoff[Math.min(attempts - 1, backoff.length - 1)] || 30000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return checkStatus();
+
                 } catch (error) {
-                    Swal.showValidationMessage(`Error: ${error.message}`);
-                    return false;
+                    console.error(`Poll attempt ${attempts + 1} failed:`, error);
+                    attempts++;
+                    if (attempts >= 3) throw new Error("Polling failed after 3 attempts");
+
+                    const delay = backoff[Math.min(attempts - 1, backoff.length - 1)] || 30000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return checkStatus();
+                }
+            };
+            return checkStatus();
+        };
+
+        const unreachableStep = () => {
+             pollAbortController.abort();
+             pollAbortController = new AbortController();
+
+             return swalQueue.fire({
+                icon: 'error',
+                text: translations[lang]['wifi.unreachable'],
+                confirmButtonText: translations[lang]['wifi.retry'],
+                didOpen: () => {
+                    Swal.showLoading();
+                    pollStep(pollAbortController)
+                        .then(result => { if (result) Swal.fire({ icon: 'success', text: translations[lang]['wifi.success'] }) })
+                        .catch(() => { Swal.hideLoading() });
+                }
+            });
+        };
+
+        // This function handles the retry logic for the scan step
+        const handleScanRetry = async (instance) => {
+            const confirmButton = Swal.getConfirmButton();
+            if(!confirmButton) return;
+
+            confirmButton.disabled = true;
+            Swal.showLoading();
+
+            const scanResult = await scanStep();
+
+            // If still failing, keep the retry logic
+            if (scanResult.text) {
+                 Swal.update({ text: scanResult.text });
+            } else { // On success, update the whole modal
+                 Swal.update(scanResult);
+            }
+            confirmButton.disabled = false;
+        };
+
+        swalQueue.fire({
+            title: translations[lang]['wifi.change'],
+            html: `<div>${translations[lang]['wifi.scanning']}</div>`,
+            showLoaderOnConfirm: true,
+            didOpen: async () => {
+                Swal.showLoading();
+                const scanResult = await scanStep();
+                Swal.update(scanResult);
+                if (scanResult.preConfirm && scanResult.preConfirm() === false) {
+                   const confirmButton = Swal.getConfirmButton();
+                   confirmButton.onclick = () => handleScanRetry();
                 }
             },
-            allowOutsideClick: () => !Swal.isLoading()
+            preConfirm: async (credentials) => {
+                if (!credentials) return false;
+
+                try {
+                    const response = await fetchWithTimeout('/api/wifi/connect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(credentials)
+                    });
+                    if (!response.ok) throw new Error('Connect request failed');
+
+                    Swal.update({ title: translations[lang]['wifi.verifying'], html: '', showConfirmButton: false });
+                    Swal.showLoading();
+
+                    pollAbortController = new AbortController();
+                    await pollStep(pollAbortController);
+                    return 'connected';
+
+                } catch (error) {
+                    console.error("Connect or poll failed:", error);
+                    if (error.message.includes("Polling failed")) return 'unreachable';
+
+                    Swal.showValidationMessage(translations[lang]['wifi.error']);
+                    return false;
+                }
+            }
         }).then((result) => {
             if (result.isConfirmed) {
-                Swal.fire(t.success, t.successText, 'success');
-                setTimeout(fetchWifiState, 2000); // Re-fetch status after a delay
+                if (result.value === 'connected') {
+                   Swal.fire({ icon: 'success', text: translations[lang]['wifi.success'] });
+                } else if (result.value === 'unreachable') {
+                   unreachableStep();
+                }
             }
         });
-    });
+    }
+
+    if (dom.buttons.changeWifi) {
+        dom.buttons.changeWifi.addEventListener('click', openWifiModal);
+    }
 
     Object.keys(stages).forEach(stageName => {
         if (dom.buttons[stageName]) {

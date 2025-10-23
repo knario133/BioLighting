@@ -74,76 +74,33 @@ void RestApi::handleGetLight(AsyncWebServerRequest *request) {
 
 void RestApi::handlePostWifiConnect(AsyncWebServerRequest *request, const JsonVariant &json) {
     JsonObject jsonObj = json.as<JsonObject>();
-
     if (!jsonObj["ssid"].is<String>()) {
-        request->send(200, "application/json", "{\"success\":false, \"error_code\":\"INVALID_INPUT\", \"message\":\"SSID must be a string\"}");
+        request->send(400, "application/json", "{\"ok\":false, \"error\":\"INVALID_INPUT\"}");
         return;
     }
     String ssid = jsonObj["ssid"].as<String>();
     String password = jsonObj["password"].as<String>();
 
+    // Basic validation
     if (ssid.length() < 1 || ssid.length() > 32) {
-        request->send(200, "application/json", "{\"success\":false, \"error_code\":\"INVALID_INPUT\", \"message\":\"Invalid SSID length\"}");
+        request->send(400, "application/json", "{\"ok\":false, \"error\":\"INVALID_SSID_LENGTH\"}");
+        return;
+    }
+     if (password.length() > 63) {
+        request->send(400, "application/json", "{\"ok\":false, \"error\":\"PASSWORD_TOO_LONG\"}");
         return;
     }
 
-    if (password.length() > 63) {
-        request->send(200, "application/json", "{\"success\":false, \"error_code\":\"INVALID_INPUT\", \"message\":\"Password too long\"}");
-        return;
-    }
+    Serial.printf("Received connect request for WiFi network: %s\n", ssid.c_str());
 
-    Serial.printf("Connecting to WiFi network: %s\n", ssid.c_str());
-
+    // Save credentials and start connection attempt
+    _storage.saveWifiCredentials(ssid, password);
+    _storage.setWifiMode(1); // Set desired mode to STA
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid.c_str(), password.c_str());
 
-    unsigned long startTime = millis();
-    while (WiFi.status() != WL_CONNECTED && millis() - startTime < 15000) {
-        if (WiFi.status() == WL_CONNECT_FAILED || WiFi.status() == WL_NO_SSID_AVAIL) {
-            break; // Fail fast
-        }
-        delay(500);
-        Serial.print(".");
-    }
-
-    JsonDocument doc;
-    bool connected = (WiFi.status() == WL_CONNECTED);
-    doc["success"] = connected;
-    doc["mode"] = "STA";
-
-    if (connected) {
-        Serial.printf("\nSuccessfully connected to %s\n", ssid.c_str());
-        _storage.saveWifiCredentials(ssid, password);
-        _storage.setWifiMode(1); // 1 = STA
-
-        doc["ip"] = WiFi.localIP().toString();
-        doc["error_code"] = nullptr;
-        doc["message"] = "Connected";
-    } else {
-        Serial.println("\nFailed to connect.");
-        wl_status_t status = WiFi.status();
-        WiFi.disconnect(true);
-
-        doc["ip"] = nullptr;
-
-        if (status == WL_NO_SSID_AVAIL) {
-            doc["error_code"] = "SSID_NOT_FOUND";
-            doc["message"] = "SSID not found";
-        } else if (status == WL_CONNECT_FAILED) {
-            doc["error_code"] = "AUTH_FAILED";
-            doc["message"] = "Authentication failed";
-        } else if (millis() - startTime >= 15000) {
-            doc["error_code"] = "TIMEOUT";
-            doc["message"] = "Connection timed out";
-        } else {
-            doc["error_code"] = "INTERNAL_ERROR";
-            doc["message"] = "An unknown error occurred";
-        }
-    }
-
-    String response;
-    serializeJson(doc, response);
-    request->send(200, "application/json", response);
+    // Immediately respond, polling will be used to check status
+    request->send(200, "application/json", "{\"ok\":true}");
 }
 
 void RestApi::handleGetLang(AsyncWebServerRequest *request) {
@@ -181,15 +138,13 @@ void RestApi::handleGetWifiScan(AsyncWebServerRequest *request) {
     int n = WiFi.scanNetworks();
 
     JsonDocument doc;
-    doc["timestamp"] = millis() / 1000;
-    JsonArray networks = doc["networks"].to<JsonArray>();
+    JsonArray networks = doc.to<JsonArray>();
 
     for (int i = 0; i < n; ++i) {
         JsonObject network = networks.add<JsonObject>();
         network["ssid"] = WiFi.SSID(i);
         network["rssi"] = WiFi.RSSI(i);
         network["secure"] = WiFi.encryptionType(i) != WIFI_AUTH_OPEN;
-        network["channel"] = WiFi.channel(i);
     }
 
     _scan_cache = "";
@@ -244,22 +199,47 @@ void RestApi::handleWifiReset(AsyncWebServerRequest *request) {
 
 void RestApi::handleGetWifiStatus(AsyncWebServerRequest *request) {
     JsonDocument doc;
-    bool isConnected = (WiFi.status() == WL_CONNECTED);
+    wl_status_t status = WiFi.status();
 
-    doc["wifi"] = isConnected;
-    doc["mode"] = isConnected ? "STA" : (WiFi.getMode() == WIFI_AP ? "AP" : "OFF");
-
-    if (isConnected) {
-        doc["ip"] = WiFi.localIP().toString();
-        doc["ssid"] = WiFi.SSID();
-        doc["rssi"] = WiFi.RSSI();
-    } else {
+    if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+        doc["mode"] = "AP";
+        doc["status"] = "connected"; // AP is always 'connected' to itself
+        doc["ssid"] = WiFi.softAPSSID();
         doc["ip"] = WiFi.softAPIP().toString();
-        doc["ssid"] = "";
-        doc["rssi"] = 0;
+        doc["rssi"] = -1; // Not applicable
+    } else { // STA mode or OFF
+        doc["mode"] = "STA";
+        switch (status) {
+            case WL_IDLE_STATUS:
+            case WL_DISCONNECTED:
+                doc["status"] = "disconnected";
+                break;
+            case WL_SCAN_COMPLETED: // Intermediate state
+            case WL_CONNECT_FAILED:
+            case WL_CONNECTION_LOST:
+            case WL_NO_SSID_AVAIL:
+                doc["status"] = "disconnected";
+                break;
+            case WL_CONNECTED:
+                doc["status"] = "connected";
+                break;
+            default: // Other states are considered "connecting"
+                doc["status"] = "connecting";
+                break;
+        }
+
+        if (status == WL_CONNECTED) {
+            doc["ssid"] = WiFi.SSID();
+            doc["ip"] = WiFi.localIP().toString();
+            doc["rssi"] = WiFi.RSSI();
+        } else {
+            doc["ssid"] = "";
+            doc["ip"] = "0.0.0.0";
+            doc["rssi"] = 0;
+        }
     }
 
     String json;
     serializeJson(doc, json);
-    request->send(200, String("application/json"), json);
+    request->send(200, "application/json", json);
 }
