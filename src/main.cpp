@@ -2,6 +2,7 @@
 #include <Preferences.h>
 #include <LiquidCrystal_I2C.h>
 #include <RotaryEncoder.h>
+#include <LittleFS.h>
 #include "config.h"
 #include "drivers/storage.h"
 #include "drivers/led_driver.h"
@@ -244,6 +245,13 @@ void renderHome(bool forceRedraw = false) {
 void setup() {
     Serial.begin(115200);
     Serial.println("\n[main] BioLighting Firmware Starting...");
+
+    // Initialize LittleFS
+    if (!LittleFS.begin()) {
+        Serial.println("An Error has occurred while mounting LittleFS");
+        return;
+    }
+
     prefs.begin("biolight", true);
     currentLang = (Lang)prefs.getUChar("lang", (uint8_t)ES);
     r_val = prefs.getUChar("r", 255);

@@ -7,12 +7,6 @@ WebServer::WebServer(RestApi& restApi) :
     _server(new AsyncWebServer(80)) {}
 
 void WebServer::begin() {
-    // Initialize LittleFS
-    if (!LittleFS.begin()) {
-        Serial.println("An Error has occurred while mounting LittleFS");
-        return;
-    }
-
     // Register all API handlers
     _restApi.registerHandlers(*_server);
 
