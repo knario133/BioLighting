@@ -1,9 +1,11 @@
+
 // Move functions outside of DOMContentLoaded to make them global
 let lang;
 let translations;
 let dom;
 let testModeInterval = null;
 let previewState = { r: 0, g: 0, b: 0, intensity: 100 };
+
 const stages = {
     off:          { r: 0,   g: 0,   b: 0,   intensity: 0 },
     growth:       { r: 50,  g: 0,   b: 255, intensity: 100 },
@@ -11,8 +13,17 @@ const stages = {
     fullSpectrum: { r: 255, g: 255, b: 255, intensity: 100 },
     transition:   { r: 180, g: 0,   b: 180, intensity: 100 }
 };
-const testSequence = ['off', 'growth', 'transition', 'flowering', 'fullSpectrum'];
 
+// === NUEVO: keyframes y timing para la aurora ===
+const AURORA_KEYFRAMES = [
+    { r: 0,   g: 40,  b: 80  },   // azul profundo
+    { r: 0,   g: 160, b: 120 },   // cian verdoso
+    { r: 40,  g: 255, b: 100 },   // verde neón
+    { r: 120, g: 80,  b: 255 },   // violeta
+    { r: 0,   g: 160, b: 255 },   // azul eléctrico
+];
+const FRAME_MS = 100;              // 0.1 s por paso
+const STEPS_PER_TRANSITION = 5;    // 5 * 100 ms = 0.5 s de transición
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- i18n Translations ---
@@ -54,7 +65,11 @@ document.addEventListener('DOMContentLoaded', () => {
             "wifi.success": "¡Conectado con éxito!",
             "wifi.error": "Error al conectar. Verifica la contraseña.",
             "wifi.verifying": "Verificando conexión...",
-            "wifi.unreachable": "Dispositivo no accesible. Conéctate a la misma red y reintenta."
+            "wifi.unreachable": "Dispositivo no accesible. Conéctate a la misma red y reintenta.",
+            // === NUEVOS textos ===
+            "wifi.cancel": "Cancelar",
+            "wifi.rescan": "Buscar redes nuevamente",
+            "wifi.applied": "Se ha aplicado el cambio de red. El dispositivo se reiniciará. Verifique el panel LCD, ya que allí se indicará la nueva dirección IP a la que debe acceder."
         },
         en: {
             title: "Lighting Control",
@@ -93,7 +108,11 @@ document.addEventListener('DOMContentLoaded', () => {
             "wifi.success": "Successfully connected!",
             "wifi.error": "Failed to connect. Check the password.",
             "wifi.verifying": "Verifying connection...",
-            "wifi.unreachable": "Device unreachable. Connect to the same network and retry."
+            "wifi.unreachable": "Device unreachable. Connect to the same network and retry.",
+            // === NEW texts ===
+            "wifi.cancel": "Cancel",
+            "wifi.rescan": "Search networks again",
+            "wifi.applied": "The network change has been applied. The device will restart. Please check the LCD panel, as it will indicate the new IP address you must access."
         }
     };
 
@@ -112,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
             g: document.getElementById('g-input'),
             b: document.getElementById('b-input'),
         },
-        values: { // Text values next to sliders (no longer used for RGB)
+        values: {
             intensity: document.getElementById('intensity-value')
         },
         labels: {
@@ -152,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.sliders[key].addEventListener('input', (e) => {
             stopTestMode();
             const value = parseInt(e.target.value, 10);
-            updatePreviewControls({ [key]: value });
+            updatePreviewControls({ [key]: isNaN(value) ? 0 : value });
         });
     });
 
@@ -177,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Listen to Buttons that are NOT using onclick
+    // Listen to Apply
     dom.buttons.apply.addEventListener('click', () => {
         confirmAndSetColor(previewState);
     });
@@ -215,15 +234,16 @@ function setLang(l) {
     dom.buttons.apply.textContent = t.applyButton;
     dom.wifiStatusLabel.textContent = t.wifiStatusLabel;
     dom.ipLabel.textContent = t.ipLabel;
-    dom.buttons.testMode.textContent = testModeInterval ? t.stopTestMode : t.testMode;
+    if (dom.buttons.testMode) dom.buttons.testMode.textContent = testModeInterval ? t.stopTestMode : t.testMode;
 
     // Update stage buttons
-    dom.buttons.off.textContent = t.btnOff;
-    dom.buttons.growth.textContent = t.btnGrowth;
-    dom.buttons.flowering.textContent = t.btnFlowering;
-    dom.buttons.fullSpectrum.textContent = t.btnFullSpectrum;
-    dom.buttons.transition.textContent = t.btnTransition;
-    document.querySelector('[data-i18n="wifi.change"]').textContent = t["wifi.change"];
+    if (dom.buttons.off) dom.buttons.off.textContent = t.btnOff;
+    if (dom.buttons.growth) dom.buttons.growth.textContent = t.btnGrowth;
+    if (dom.buttons.flowering) dom.buttons.flowering.textContent = t.btnFlowering;
+    if (dom.buttons.fullSpectrum) dom.buttons.fullSpectrum.textContent = t.btnFullSpectrum;
+    if (dom.buttons.transition) dom.buttons.transition.textContent = t.btnTransition;
+    const changeWifiEl = document.querySelector('[data-i18n="wifi.change"]');
+    if (changeWifiEl) changeWifiEl.textContent = t["wifi.change"];
 }
 
 // --- API Communication ---
@@ -271,7 +291,7 @@ const setColor = async (state) => {
         });
         if (response.ok) {
             const newState = await response.json();
-            updateUi(newState); // Sync UI with the confirmed state from device
+            updateUi(newState);
         }
     } catch (error) {
         console.error('Failed to update light state:', error);
@@ -302,26 +322,25 @@ const fetchWifiState = async () => {
     }
 };
 
-
 const toHex = (c) => `0${(c || 0).toString(16)}`.slice(-2);
 
 // This function updates ONLY the UI controls from a state object
 const updatePreviewControls = (state) => {
     previewState = { ...previewState, ...state };
 
-    dom.sliders.r.value = previewState.r;
-    dom.inputs.r.value = previewState.r;
+    if (dom.sliders.r) dom.sliders.r.value = previewState.r;
+    if (dom.inputs.r) dom.inputs.r.value = previewState.r;
 
-    dom.sliders.g.value = previewState.g;
-    dom.inputs.g.value = previewState.g;
+    if (dom.sliders.g) dom.sliders.g.value = previewState.g;
+    if (dom.inputs.g) dom.inputs.g.value = previewState.g;
 
-    dom.sliders.b.value = previewState.b;
-    dom.inputs.b.value = previewState.b;
+    if (dom.sliders.b) dom.sliders.b.value = previewState.b;
+    if (dom.inputs.b) dom.inputs.b.value = previewState.b;
 
-    dom.sliders.intensity.value = previewState.intensity;
-    dom.values.intensity.textContent = `${previewState.intensity}%`;
+    if (dom.sliders.intensity) dom.sliders.intensity.value = previewState.intensity;
+    if (dom.values.intensity) dom.values.intensity.textContent = `${previewState.intensity}%`;
 
-    dom.colorPicker.value = `#${toHex(previewState.r)}${toHex(previewState.g)}${toHex(previewState.b)}`;
+    if (dom.colorPicker) dom.colorPicker.value = `#${toHex(previewState.r)}${toHex(previewState.g)}${toHex(previewState.b)}`;
 };
 
 const updateUi = (state) => {
@@ -331,8 +350,8 @@ const updateUi = (state) => {
 
 const updateWifiUi = (state) => {
     const t = translations[lang];
-    dom.wifiStatusValue.textContent = state.wifi ? `${t.connected} (${state.ssid})` : t.disconnected;
-    dom.ipValue.textContent = state.ip;
+    if (dom.wifiStatusValue) dom.wifiStatusValue.textContent = state.wifi ? `${t.connected} (${state.ssid})` : t.disconnected;
+    if (dom.ipValue) dom.ipValue.textContent = state.ip;
 };
 
 const hexToRgb = (hex) => {
@@ -344,22 +363,18 @@ const hexToRgb = (hex) => {
     } : null;
 };
 
-// --- Global Event Handlers for onclick ---
+// --- Modal Cambiar Wi-Fi ---
 window.openWifiModal = async () => {
-    // This will handle polling for scan results
     const pollForScanResults = async (pollController) => {
         let attempts = 0;
-        const maxAttempts = 15; // 15 attempts * 2s delay = 30s timeout
-
+        const maxAttempts = 15; // ~30s
         while (attempts < maxAttempts) {
             if (pollController.signal.aborted) throw new Error('Polling for scan results aborted');
-
             try {
                 const response = await fetchWithTimeout('/api/wifi/results', { signal: pollController.signal, timeout: 5000 });
-
                 if (response.status === 200) {
                     const networks = await response.json();
-                    return networks; // Success, return the list
+                    return networks;
                 } else if (response.status === 202) {
                     await new Promise(resolve => setTimeout(resolve, 2000));
                     attempts++;
@@ -377,26 +392,20 @@ window.openWifiModal = async () => {
     const pollForConnectionStatus = async (pollController) => {
         let attempts = 0;
         const backoff = [2000, 5000, 10000];
-
         const checkStatus = async () => {
             if (pollController.signal.aborted) throw new Error('Polling aborted');
-
             try {
                 const response = await fetchWithTimeout('/api/wifi/status', { signal: pollController.signal });
                 const data = await response.json();
-
                 if (data.mode === 'STA' && data.status === 'connected') return true;
-
                 attempts++;
                 const delay = backoff[Math.min(attempts - 1, backoff.length - 1)] || 30000;
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return checkStatus();
-
             } catch (error) {
                 console.error(`Connection poll attempt ${attempts + 1} failed:`, error);
                 attempts++;
                 if (attempts >= 3) throw new Error("Polling failed after 3 attempts");
-
                 const delay = backoff[Math.min(attempts - 1, backoff.length - 1)] || 30000;
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return checkStatus();
@@ -407,7 +416,6 @@ window.openWifiModal = async () => {
 
     const unreachableStep = () => {
         let pollAbortController = new AbortController();
-
         return Swal.fire({
             icon: 'error',
             text: translations[lang]['wifi.unreachable'],
@@ -421,37 +429,40 @@ window.openWifiModal = async () => {
         });
     };
 
+    const t = translations[lang];
+
     Swal.fire({
-        title: translations[lang]['wifi.change'],
-        html: `<div>${translations[lang]['wifi.scanning']}</div>`,
+        title: t['wifi.change'],
+        html: `<div>${t['wifi.scanning']}</div>`,
         allowOutsideClick: false,
         allowEscapeKey: false,
+        showDenyButton: true,                    // NUEVO botón "Buscar redes nuevamente"
+        denyButtonText: t['wifi.rescan'],
+        showCancelButton: true,                  // NUEVO botón "Cancelar"
+        cancelButtonText: t['wifi.cancel'],
         didOpen: async () => {
             Swal.showLoading();
             let pollScanController = new AbortController();
-
             try {
                 const scanInitiateResponse = await fetchWithTimeout('/api/wifi/scan');
-                if (scanInitiateResponse.status !== 202) {
-                    throw new Error("Failed to initiate scan");
-                }
-
+                if (scanInitiateResponse.status !== 202) throw new Error("Failed to initiate scan");
                 const networks = await pollForScanResults(pollScanController);
 
                 if (networks && networks.length > 0) {
                     const options = networks.map(net => `<option value="${net.ssid}">${net.ssid} (${net.rssi} dBm)</option>`).join('');
                     Swal.update({
                         html: `
+                            <label class="swal2-label" for="ssidSelect">${t['wifi.select']}</label>
                             <select id="ssidSelect" class="swal2-select">${options}</select>
-                            <input type="password" id="wifiPwd" class="swal2-input" placeholder="${translations[lang]['wifi.password']}">
+                            <input type="password" id="wifiPwd" class="swal2-input" placeholder="${t['wifi.password']}">
                         `,
                         showConfirmButton: true,
-                        confirmButtonText: translations[lang]['wifi.connect'],
+                        confirmButtonText: t['wifi.connect'],
                     });
                 } else {
                     Swal.update({
-                        html: translations[lang]['wifi.noneFound'],
-                        confirmButtonText: translations[lang]['wifi.retry'],
+                        html: t['wifi.noneFound'],
+                        confirmButtonText: t['wifi.retry'],
                         showConfirmButton: true,
                         preConfirm: () => false
                     });
@@ -459,8 +470,8 @@ window.openWifiModal = async () => {
             } catch (error) {
                 console.error("WiFi Scan process failed:", error);
                 Swal.update({
-                    html: translations[lang]['wifi.error'],
-                    confirmButtonText: translations[lang]['wifi.retry'],
+                    html: t['wifi.error'],
+                    confirmButtonText: t['wifi.retry'],
                     showConfirmButton: true,
                     preConfirm: () => false
                 });
@@ -469,14 +480,9 @@ window.openWifiModal = async () => {
         preConfirm: async () => {
             const ssid = document.getElementById('ssidSelect')?.value;
             const password = document.getElementById('wifiPwd')?.value;
-
-            if (!ssid) {
-                openWifiModal();
-                return false;
-            }
+            if (!ssid) { openWifiModal(); return false; }
 
             const credentials = { ssid, password };
-
             try {
                 const response = await fetchWithTimeout('/api/wifi/connect', {
                     method: 'POST',
@@ -486,7 +492,7 @@ window.openWifiModal = async () => {
                 if (!response.ok) throw new Error('Connect request failed');
 
                 Swal.update({
-                    title: translations[lang]['wifi.verifying'],
+                    title: t['wifi.verifying'],
                     html: '',
                     showConfirmButton: false,
                     showLoaderOnConfirm: true
@@ -496,26 +502,33 @@ window.openWifiModal = async () => {
                 let pollConnectController = new AbortController();
                 await pollForConnectionStatus(pollConnectController);
                 return 'connected';
-
             } catch (error) {
                 console.error("Connect or poll failed:", error);
                 if (error.message.includes("Polling failed")) return 'unreachable';
-
-                Swal.showValidationMessage(translations[lang]['wifi.error']);
+                Swal.showValidationMessage(t['wifi.error']);
                 return false;
             }
         }
     }).then((result) => {
+        if (result.isDenied) {
+            // Re-escaneo: abrimos nuevamente el modal para forzar un nuevo scan
+            openWifiModal();
+            return;
+        }
         if (result.isConfirmed) {
             if (result.value === 'connected') {
-            Swal.fire({ icon: 'success', text: translations[lang]['wifi.success'] });
+                // Mensaje de confirmación solicitado (post-cambio)
+                Swal.fire({ icon: 'success', text: translations[lang]['wifi.applied'] });
+                // refrescamos estado en UI
+                fetchWifiState();
             } else if (result.value === 'unreachable') {
-            unreachableStep();
+                unreachableStep();
             }
         }
     });
-}
+};
 
+// --- Botones principales ---
 window.handleTestModeClick = () => {
     if (testModeInterval) {
         stopTestMode();
@@ -530,7 +543,7 @@ window.handleTestModeClick = () => {
             cancelButtonText: t.no,
         }).then(result => {
             if (result.isConfirmed) {
-                startTestMode();
+                startAuroraTestMode();
             }
         });
     }
@@ -540,40 +553,59 @@ window.handleResetClick = () => {
     confirmAndSetColor({ r: 0, g: 0, b: 0, intensity: 0 });
 };
 
+// --- Modo de Prueba (Aurora Boreal) ---
 const stopTestMode = () => {
     if (testModeInterval) {
         clearInterval(testModeInterval);
         testModeInterval = null;
-        dom.buttons.testMode.textContent = translations[lang].testMode;
+        if (dom.buttons.testMode) dom.buttons.testMode.textContent = translations[lang].testMode;
     }
 };
 
-const startTestMode = () => {
+function lerp(a, b, t) {
+    return Math.round(a + (b - a) * t);
+}
+
+const startAuroraTestMode = () => {
     if (testModeInterval) return;
 
-    dom.buttons.testMode.textContent = translations[lang].stopTestMode;
-    let currentStep = 0;
+    if (dom.buttons.testMode) dom.buttons.testMode.textContent = translations[lang].stopTestMode;
+
+    let idx = 0;
+    let step = 0;
 
     testModeInterval = setInterval(() => {
-        const stageName = testSequence[currentStep];
-        const state = stages[stageName];
+        if (step > STEPS_PER_TRANSITION) {
+            step = 0;
+            idx = (idx + 1) % AURORA_KEYFRAMES.length;
+        }
 
+        const from = AURORA_KEYFRAMES[idx];
+        const to   = AURORA_KEYFRAMES[(idx + 1) % AURORA_KEYFRAMES.length];
+        const t    = step / STEPS_PER_TRANSITION;
+
+        const state = {
+            r: lerp(from.r, to.r, t),
+            g: lerp(from.g, to.g, t),
+            b: lerp(from.b, to.b, t),
+            intensity: previewState.intensity  // respeta la intensidad elegida
+        };
+
+        // Actualiza backend y UI
         fetch('/api/light', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(state)
-        });
+        }).catch(() => { /* silencioso en demo */ });
 
         updateUi(state);
-
-        currentStep = (currentStep + 1) % testSequence.length;
-    }, 2000);
+        step++;
+    }, FRAME_MS);
 };
 
 // --- Initialization ---
 const init = () => {
     setLang(lang);
-
     if (window.location.protocol.startsWith('http')) {
         fetchLightState();
         fetchWifiState();
